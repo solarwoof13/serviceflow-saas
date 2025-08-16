@@ -42,34 +42,60 @@ class WebhooksController < ApplicationController
 
   private
 
-  def process_jobber_data(data)
-    puts "Processing Jobber data for automation..."
+ def process_jobber_data(data)
+  puts "Processing Jobber data for automation..."
+  
+  # Extract visit ID from real Jobber webhook
+  visit_id = data.dig("data", "webHookEvent", "itemId")
+  
+  if visit_id
+    puts "Found visit ID: #{visit_id}"
     
+    # Get access token for this account (you'll need to implement this)
+    access_token = get_access_token_for_account
+    
+    # Fetch real data from Jobber
+    jobber_data = JobberApiService.fetch_visit_details(visit_id, access_token)
+    
+    if jobber_data['data'] && jobber_data['data']['visit']
+      puts "✅ Successfully fetched real Jobber data"
+      job_info = extract_real_job_info(jobber_data['data']['visit'])
+      customer_info = extract_real_customer_info(jobber_data['data']['visit'])
+      notes_info = extract_real_notes(jobber_data['data']['visit'])
+    else
+      puts "❌ Failed to fetch Jobber data, using fallback"
+      job_info = extract_job_info(data)
+      customer_info = extract_customer_info(data)
+      notes_info = extract_and_process_notes(data)
+    end
+  else
+    puts "No visit ID found, using test data"
     job_info = extract_job_info(data)
-    customer_info = extract_customer_info(data) 
+    customer_info = extract_customer_info(data)
     notes_info = extract_and_process_notes(data)
-    
-    property_address = {
-      street: job_info[:property_street],
-      city: job_info[:property_city], 
-      province: job_info[:property_state]
-    }
-    
-    season_info = SeasonalIntelligenceService.determine_season(
-      property_address, 
-      'beekeeping'
-    )
-    
-    {
-      job_id: job_info[:job_number],
-      customer_name: customer_info[:display_name],
-      customer_email: customer_info[:primary_email],
-      property_address: property_address,
-      service_notes: notes_info[:formatted_notes],
-      season_info: season_info,
-      service_items: job_info[:line_items]
-    }
   end
+  
+  property_address = {
+    street: job_info[:property_street],
+    city: job_info[:property_city], 
+    province: job_info[:property_state]
+  }
+  
+  season_info = SeasonalIntelligenceService.determine_season(
+    property_address, 
+    'beekeeping'
+  )
+  
+  {
+    job_id: job_info[:job_number],
+    customer_name: customer_info[:display_name],
+    customer_email: customer_info[:primary_email],
+    property_address: property_address,
+    service_notes: notes_info[:formatted_notes],
+    season_info: season_info,
+    service_items: job_info[:line_items]
+  }
+end 
 
   def extract_job_info(data)
     {
@@ -159,5 +185,63 @@ class WebhooksController < ApplicationController
       message: "Email sent successfully (mock)",
       email_id: "sf_#{SecureRandom.hex(8)}"
     }
+  end
+  def extract_real_job_info(visit_data)
+    job_data = visit_data['job'] || {}
+    property_data = job_data['property'] || {}
+    address_data = property_data['address'] || {}
+    line_items = job_data['lineItems']&.dig('nodes') || []
+    
+    {
+      job_number: job_data['jobNumber'] || "SF-#{rand(1000..9999)}",
+      property_street: address_data['street'] || "123 Service Lane",
+      property_city: address_data['city'] || "Austin",
+      property_state: address_data['province'] || "TX",
+      line_items: line_items.map { |item| item['name'] }.join(", ")
+    }
+  end
+
+  def extract_real_customer_info(visit_data)
+    job_data = visit_data['job'] || {}
+    client_data = job_data['client'] || {}
+    emails = client_data['emails'] || []
+    
+    company_name = client_data['companyName']
+    first_name = client_data['firstName'] || "Customer"
+    last_name = client_data['lastName'] || ""
+    
+    primary_email = emails.find { |email| email['primary'] }&.dig('address') || 
+                    emails.first&.dig('address') || 
+                    "customer@example.com"
+    
+    display_name = if company_name.present?
+      company_name
+    else
+      "#{first_name} #{last_name}".strip
+    end
+    
+    {
+      display_name: display_name,
+      primary_email: primary_email
+    }
+  end
+
+  def extract_real_notes(visit_data)
+    notes = visit_data['notes']&.dig('nodes') || []
+    
+    recent_notes = notes.map do |note|
+      "#{note['message']} (#{Date.parse(note['createdAt']).strftime('%m/%d/%Y')})"
+    end.join('\n\n')
+    
+    {
+      formatted_notes: recent_notes.present? ? recent_notes : "Service completed successfully.",
+      note_count: notes.length,
+      created_date: Date.current.strftime("%m/%d/%Y")
+    }
+  end
+
+  def get_access_token_for_account
+    # For now, we'll add your token as environment variable
+    ENV['JOBBER_ACCESS_TOKEN'] || 'temp_token'
   end
 end
