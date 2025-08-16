@@ -51,33 +51,16 @@ end
     puts "Processing Jobber data for automation..."
     
     # Extract data (like your n8n code)
-    
-    def extract_job_info(data)
-  # Handle real Jobber webhook format
-  if data[:event] == 'visit.completed'
-    visit_data = data[:visit] || {}
-    job_data = visit_data[:job] || {}
-    property_data = job_data[:property] || {}
-    address_data = property_data[:address] || {}
-    
-    {
-      job_number: job_data[:jobNumber] || "SF-#{rand(1000..9999)}",
-      property_street: address_data[:street],
-      property_city: address_data[:city], 
-      property_state: address_data[:province],
-      line_items: job_data[:lineItems]&.dig(:nodes)&.map { |item| item[:name] }&.join(", ")
-    }
-  else
-    # Fallback to test format
-    {
-      job_number: data[:job_number] || "SF-#{rand(1000..9999)}",
-      property_street: data[:property_address] || "123 Bee Lane",
-      property_city: data[:city] || "Austin",
-      property_state: data[:state] || "TX",
-      line_items: data[:services] || "Hive inspection"
-    }
-  end
-end
+
+def extract_job_info(data)
+  {
+    job_number: data[:job_number] || data["job_number"] || "SF-#{rand(1000..9999)}",
+    property_street: data[:property_address] || data["property_address"] || "123 Bee Lane",
+    property_city: data[:city] || data["city"] || "Austin",
+    property_state: data[:state] || data["state"] || "TX",
+    line_items: data[:services] || data["services"] || "Hive inspection"
+  }
+end    
     
     # Get intelligent seasonal context
     property_address = {
@@ -114,17 +97,23 @@ end
   end
 
   def extract_customer_info(data)
-    # Simulate customer data extraction
-    company_name = data[:company_name] || "Hill Country Apiaries"
-    first_name = data[:first_name] || "John"
-    last_name = data[:last_name] || "Smith"
-    
+    # Handle both symbol and string keys safely
+    company_name = data[:company_name] || data["company_name"]
+    first_name = data[:first_name] || data["first_name"] || "John"
+    last_name = data[:last_name] || data["last_name"] || "Smith"
+    email = data[:email] || data["email"] || "customer@example.com"
+  
+    display_name = if company_name.present?
+      company_name
+    else
+      "#{first_name} #{last_name}".strip
+    end
+  
     {
-      display_name: company_name.present? ? company_name : "#{first_name} #{last_name}",
-      primary_email: data[:email] || "john@hillcountryapiaries.com"
+      display_name: display_name,
+      primary_email: email
     }
   end
-
   def extract_and_process_notes(data)
     # Simulate your n8n note processing logic
     raw_notes = data[:notes] || "Inspected 3 hives. Queen present in all. Added supers to hive #2. Mite levels low."
