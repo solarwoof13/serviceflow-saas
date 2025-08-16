@@ -36,4 +36,13 @@ class ApplicationController < ActionController::API
   rescue Exceptions::AuthorizationException => error
     render(json: { message: error.message }, status: :unauthorized)
   end
+
+  def index
+  # Simple OAuth trigger page
+  render json: { 
+    message: "ServiceFlow OAuth",
+    connect_url: "/auth/jobber",
+    status: "ready"
+  }
+  end
 end

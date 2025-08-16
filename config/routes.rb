@@ -1,6 +1,11 @@
 # frozen_string_literal: true
 
+root 'application#index'
+
 Rails.application.routes.draw do
+    root 'auth#index'
+  get "/auth/jobber", to: "auth#jobber_oauth"
+
   post "/webhooks/jobber", to: 'webhooks#jobber'
   get "/heartbeat", to: "application#heartbeat"
   get "/logout", to: "auth#logout"

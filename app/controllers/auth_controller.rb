@@ -27,4 +27,24 @@ class AuthController < ApplicationController
   def jobber_service
     JobberService.new
   end
+
+  def index
+  render json: {
+    message: "ServiceFlow OAuth Setup",
+    connect_jobber: request.base_url + "/auth/jobber",
+    webhook_url: request.base_url + "/webhooks/jobber",
+    status: "ready"
+  }
+ end
+
+ def jobber_oauth
+  # Redirect to Jobber OAuth
+  jobber_service = JobberService.new
+  authorization_url = jobber_service.authorization_url(
+    redirect_uri: request.base_url + "/request_access_token"
+  )
+  
+  redirect_to authorization_url, allow_other_host: true
+  end
+
 end
