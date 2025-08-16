@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Jobber App Template - Rails API
 
 [![CircleCI](https://circleci.com/gh/GetJobber/Jobber-AppTemplate-RailsAPI/tree/main.svg?style=svg&circle-token=6b380bcc34004fc33fd7d0a8041ef80e20fe522d)](https://circleci.com/gh/GetJobber/Jobber-AppTemplate-RailsAPI/tree/main)
@@ -317,3 +318,7 @@ Please follow one of these [issue templates](https://github.com/GetJobber/Jobber
 ## License
 
 The template is available as open source under the terms of the MIT License.
+=======
+# serviceflow-saas
+AI-powered customer communication automation for service businesses
+>>>>>>> 0c9380371a10f05e7d8da84acab6f0a4496b806d
