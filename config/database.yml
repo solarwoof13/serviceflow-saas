@@ -24,6 +24,7 @@ default: &default
 development:
   <<: *default
   database: jobber_apptemplate_railsapi_development
+  username: mikejames
   host: <%= ENV.fetch('DATABASE_HOST') { 'localhost' } %>
   port: <%= ENV.fetch('DATABASE_PORT') { '5432' } %>
   username: <%= ENV.fetch("DATABASE_USERNAME") { "postgres" } %>
@@ -89,6 +90,4 @@ test:
 #
 production:
   <<: *default
-  database: jobber_apptemplate_railsapi_production
-  username: jobber_apptemplate_railsapi
-  password: <%= ENV['JOBBER_APPTEMPLATE_RAILSAPI_DATABASE_PASSWORD'] %>
+  url: <%= ENV['DATABASE_URL'] %>
