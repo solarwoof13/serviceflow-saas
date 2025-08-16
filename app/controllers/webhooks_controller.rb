@@ -2,36 +2,31 @@ class WebhooksController < ApplicationController
   def jobber
     puts "=== SERVICEFLOW WEBHOOK RECEIVED ==="
     
-    # Get the webhook data (this will be real Jobber data)
     webhook_data = params.except(:controller, :action, :webhook)
     puts "Webhook data: #{webhook_data}"
     
-    # Process the data using your enhanced logic
     processed_data = process_jobber_data(webhook_data)
-    
-    # Generate AI prompt (your n8n logic)
     ai_prompt = generate_ai_prompt(processed_data)
     
-puts "Generated AI prompt: #{ai_prompt[:preview]}"
+    puts "Generated AI prompt: #{ai_prompt[:preview]}"
 
-# Generate customer email using AI
-ai_response = AiService.generate_customer_email(ai_prompt[:full_prompt])
+    ai_response = AiService.generate_customer_email(ai_prompt[:full_prompt])
 
-if ai_response[:success]
-  puts "✅ AI Email Generated Successfully!"
-  puts "Email preview: #{ai_response[:email_content][0..200]}..."
-  
-  # TODO: Send email (next step)
-  email_sent = send_customer_email(
-    to: processed_data[:customer_email],
-    subject: "Service Update for #{processed_data[:customer_name]}",
-    content: ai_response[:email_content]
-  )
-  
-  puts email_sent[:success] ? "✅ Email sent!" : "❌ Email failed: #{email_sent[:error]}"
-else
-  puts "❌ AI generation failed: #{ai_response[:error]}"
-end    
+    if ai_response[:success]
+      puts "✅ AI Email Generated Successfully!"
+      puts "Email preview: #{ai_response[:email_content][0..200]}..."
+      
+      email_sent = send_customer_email(
+        to: processed_data[:customer_email],
+        subject: "Service Update for #{processed_data[:customer_name]}",
+        content: ai_response[:email_content]
+      )
+      
+      puts email_sent[:success] ? "✅ Email sent!" : "❌ Email failed: #{email_sent[:error]}"
+    else
+      puts "❌ AI generation failed: #{ai_response[:error]}"
+    end
+    
     render json: { 
       status: 'processed',
       job_id: processed_data[:job_id],
@@ -50,73 +45,62 @@ end
   def process_jobber_data(data)
     puts "Processing Jobber data for automation..."
     
-    # Extract data (like your n8n code)
-
-def extract_job_info(data)
-  {
-    job_number: data[:job_number] || data["job_number"] || "SF-#{rand(1000..9999)}",
-    property_street: data[:property_address] || data["property_address"] || "123 Bee Lane",
-    property_city: data[:city] || data["city"] || "Austin",
-    property_state: data[:state] || data["state"] || "TX",
-    line_items: data[:services] || data["services"] || "Hive inspection"
-  }
-end    
+    job_info = extract_job_info(data)
+    customer_info = extract_customer_info(data) 
+    notes_info = extract_and_process_notes(data)
     
-    # Get intelligent seasonal context
     property_address = {
-      street: job_data[:property_street] || "123 Main St",
-      city: job_data[:property_city] || "Austin", 
-      province: job_data[:property_state] || "TX"
+      street: job_info[:property_street],
+      city: job_info[:property_city], 
+      province: job_info[:property_state]
     }
     
     season_info = SeasonalIntelligenceService.determine_season(
       property_address, 
-      'beekeeping' # TODO: Get from business profile
+      'beekeeping'
     )
     
     {
-      job_id: job_data[:job_number],
-      customer_name: customer_data[:display_name],
-      customer_email: customer_data[:primary_email],
+      job_id: job_info[:job_number],
+      customer_name: customer_info[:display_name],
+      customer_email: customer_info[:primary_email],
       property_address: property_address,
-      service_notes: notes_data[:formatted_notes],
+      service_notes: notes_info[:formatted_notes],
       season_info: season_info,
-      service_items: job_data[:line_items]
+      service_items: job_info[:line_items]
     }
   end
 
   def extract_job_info(data)
-    # Simulate extracting job data (real implementation will parse Jobber webhook)
     {
-      job_number: data[:job_number] || "SF-#{rand(1000..9999)}",
-      property_street: data[:property_address] || "123 Bee Lane",
-      property_city: data[:city] || "Austin",
-      property_state: data[:state] || "TX",
-      line_items: data[:services] || "Hive inspection, mite treatment"
+      job_number: data[:job_number] || data["job_number"] || "SF-#{rand(1000..9999)}",
+      property_street: data[:property_address] || data["property_address"] || "123 Bee Lane",
+      property_city: data[:city] || data["city"] || "Austin",
+      property_state: data[:state] || data["state"] || "TX",
+      line_items: data[:services] || data["services"] || "Hive inspection"
     }
   end
 
   def extract_customer_info(data)
-    # Handle both symbol and string keys safely
     company_name = data[:company_name] || data["company_name"]
     first_name = data[:first_name] || data["first_name"] || "John"
     last_name = data[:last_name] || data["last_name"] || "Smith"
     email = data[:email] || data["email"] || "customer@example.com"
-  
+    
     display_name = if company_name.present?
       company_name
     else
       "#{first_name} #{last_name}".strip
     end
-  
+    
     {
       display_name: display_name,
       primary_email: email
     }
   end
+
   def extract_and_process_notes(data)
-    # Simulate your n8n note processing logic
-    raw_notes = data[:notes] || "Inspected 3 hives. Queen present in all. Added supers to hive #2. Mite levels low."
+    raw_notes = data[:notes] || data["notes"] || "Service completed successfully."
     
     {
       formatted_notes: raw_notes,
@@ -126,7 +110,6 @@ end
   end
 
   def generate_ai_prompt(processed_data)
-    # Your n8n prompt generation logic
     season = processed_data[:season_info][:season]
     reasoning = processed_data[:season_info][:reasoning]
     
@@ -145,7 +128,6 @@ end
   end
 
   def build_dynamic_prompt(customer_name:, property_address:, current_season:, service_notes:, seasonal_reasoning:)
-    # Your exact n8n prompt logic converted to Ruby
     address_str = "#{property_address[:street]}, #{property_address[:city]}, #{property_address[:province]}"
     
     <<~PROMPT
@@ -165,17 +147,17 @@ end
       Write only the email body content - no subject line, greeting or regards.
     PROMPT
   end
-def send_customer_email(to:, subject:, content:)
-  # Mock email sending for now
-  puts "📧 SENDING EMAIL:"
-  puts "To: #{to}"
-  puts "Subject: #{subject}"
-  puts "Content: #{content[0..100]}..."
-  
-  {
-    success: true,
-    message: "Email sent successfully (mock)",
-    email_id: "sf_#{SecureRandom.hex(8)}"
-  }
-end
+
+  def send_customer_email(to:, subject:, content:)
+    puts "📧 SENDING EMAIL:"
+    puts "To: #{to}"
+    puts "Subject: #{subject}"
+    puts "Content: #{content[0..100]}..."
+    
+    {
+      success: true,
+      message: "Email sent successfully (mock)",
+      email_id: "sf_#{SecureRandom.hex(8)}"
+    }
+  end
 end
