@@ -52,7 +52,23 @@ class WebhooksController < ApplicationController
     puts "Found visit ID: #{visit_id}"
     
     # Get access token for this account (you'll need to implement this)
-    access_token = get_access_token_for_account
+    def get_access_token_for_account
+  # Get the account that sent the webhook
+  # For now, get the first account (your account)
+  account = JobberAccount.first
+  
+  if account && account.valid_jobber_access_token?
+    account.jobber_access_token
+  elsif account
+    # Token expired, refresh it
+    account.refresh_jobber_access_token!
+    account.jobber_access_token
+  else
+    # No account found - this shouldn't happen in production
+    puts "❌ No JobberAccount found"
+    nil
+  end
+end
     
     # Fetch real data from Jobber
     jobber_data = JobberApiService.fetch_visit_details(visit_id, access_token)
