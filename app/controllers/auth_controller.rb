@@ -35,16 +35,19 @@ class AuthController < ApplicationController
     webhook_url: request.base_url + "/webhooks/jobber",
     status: "ready"
   }
- end
+end
 
- def jobber_oauth
-  # Redirect to Jobber OAuth
+def jobber_oauth
+  puts "=== STARTING OAUTH FLOW ==="
+  puts "Base URL: #{request.base_url}"
+  
   jobber_service = JobberService.new
-  authorization_url = jobber_service.authorization_url(
-    redirect_uri: request.base_url + "/request_access_token"
-  )
+  redirect_uri = "#{request.base_url}/request_access_token"
+  puts "Redirect URI: #{redirect_uri}"
+  
+  authorization_url = jobber_service.authorization_url(redirect_uri: redirect_uri)
+  puts "Auth URL: #{authorization_url}"
   
   redirect_to authorization_url, allow_other_host: true
-  end
-
+end
 end
