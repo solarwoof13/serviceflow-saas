@@ -86,6 +86,18 @@ class JobberService
     tokens
   end
 
+  def authorization_url(redirect_uri:)
+    params = {
+      client_id: client_id,
+      response_type: 'code',
+      redirect_uri: redirect_uri,
+      scope: 'read write'
+    }
+    
+    query_string = URI.encode_www_form(params)
+    "https://api.getjobber.com/api/oauth/authorize?#{query_string}"
+  end
+
   private
 
   def client
