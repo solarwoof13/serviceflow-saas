@@ -71,6 +71,7 @@ class WebhooksController < ApplicationController
 end
     
     # Fetch real data from Jobber
+    access_token = get_access_token_for_account
     jobber_data = JobberApiService.fetch_visit_details(visit_id, access_token)
     
     if jobber_data['data'] && jobber_data['data']['visit']
