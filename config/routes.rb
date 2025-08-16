@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
-root 'application#index'
-
 Rails.application.routes.draw do
-    root 'auth#index'
+  root 'auth#index'
   get "/auth/jobber", to: "auth#jobber_oauth"
 
   post "/webhooks/jobber", to: 'webhooks#jobber'
@@ -17,3 +15,4 @@ Rails.application.routes.draw do
     post "/", to: "webhook_receiver#index"
   end
 end
+
