@@ -53,22 +53,26 @@ class WebhooksController < ApplicationController
     
     # Get access token for this account (you'll need to implement this)
     def get_access_token_for_account
-  # Get the account that sent the webhook
-  # For now, get the first account (your account)
-  account = JobberAccount.first
-  
-  if account && account.valid_jobber_access_token?
-    account.jobber_access_token
-  elsif account
-    # Token expired, refresh it
-    account.refresh_jobber_access_token!
-    account.jobber_access_token
-  else
-    # No account found - this shouldn't happen in production
-    puts "❌ No JobberAccount found"
-    nil
-  end
-end
+      # First try environment variable (for production)
+      env_token = ENV['JOBBER_ACCESS_TOKEN']
+      if env_token.present?
+        puts "✅ Using environment token"
+        return env_token
+      end
+      
+      # Fallback to database
+      account = JobberAccount.first
+      
+      if account && account.valid_jobber_access_token?
+        account.jobber_access_token
+      elsif account
+        account.refresh_jobber_access_token!
+        account.jobber_access_token
+      else
+        puts "❌ No JobberAccount found, no environment token"
+        nil
+      end
+    end
     
     # Fetch real data from Jobber
     access_token = get_access_token_for_account
