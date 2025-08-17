@@ -42,58 +42,60 @@ class WebhooksController < ApplicationController
 
   private
 
- def process_jobber_data(data)
-  puts "Processing Jobber data for automation..."
-  
-  # Extract visit ID from real Jobber webhook
-  visit_id = data.dig("data", "webHookEvent", "itemId")
-  
-  if visit_id
-    puts "Found visit ID: #{visit_id}"
+  def process_jobber_data(data)
+    puts "Processing Jobber data for automation..."
     
-    # Get access token for this account (you'll need to implement this)
-    def get_access_token_for_account
-      # First try environment variable (for production)
-      env_token = ENV['JOBBER_ACCESS_TOKEN']
-      if env_token.present?
-        puts "✅ Using environment token"
-        return env_token
-      end
+    # Extract visit ID from real Jobber webhook
+    visit_id = data.dig("data", "webHookEvent", "itemId")
+    
+    if visit_id
+      puts "Found visit ID: #{visit_id}"
       
-      # Fallback to database
-      account = JobberAccount.first
+      # Get access token for this account
+      access_token = get_access_token_for_account
       
-      if account && account.valid_jobber_access_token?
-        account.jobber_access_token
-      elsif account
-        account.refresh_jobber_access_token!
-        account.jobber_access_token
+      # Fetch real data from Jobber
+      jobber_data = JobberApiService.fetch_visit_details(visit_id, access_token)
+      puts "Jobber API response: #{jobber_data.inspect}"
+  
+      if jobber_data && jobber_data['data'] && jobber_data['data']['visit']
+        puts "✅ Successfully fetched real Jobber data"
+        job_info = extract_real_job_info(jobber_data['data']['visit'])
+        customer_info = extract_real_customer_info(jobber_data['data']['visit'])
+        notes_info = extract_real_notes(jobber_data['data']['visit'])
       else
-        puts "❌ No JobberAccount found, no environment token"
-        nil
+        puts "❌ Failed to fetch Jobber data, using fallback"
+        job_info = extract_job_info(data)
+        customer_info = extract_customer_info(data)
+        notes_info = extract_and_process_notes(data)
       end
-    end
-    
-    # Fetch real data from Jobber
-    access_token = get_access_token_for_account
-    puts "Jobber API response: #{jobber_data.inspect}"
-
-     if jobber_data && jobber_data['data'] && jobber_data['data']['visit']
-      puts "✅ Successfully fetched real Jobber data"
-      job_info = extract_real_job_info(jobber_data['data']['visit'])
-      customer_info = extract_real_customer_info(jobber_data['data']['visit'])
-      notes_info = extract_real_notes(jobber_data['data']['visit'])
     else
-      puts "❌ Failed to fetch Jobber data, using fallback"
+      puts "No visit ID found, using test data"
       job_info = extract_job_info(data)
       customer_info = extract_customer_info(data)
       notes_info = extract_and_process_notes(data)
     end
-  else
-    puts "No visit ID found, using test data"
-    job_info = extract_job_info(data)
-    customer_info = extract_customer_info(data)
-    notes_info = extract_and_process_notes(data)
+    
+    property_address = {
+      street: job_info[:property_street],
+      city: job_info[:property_city], 
+      province: job_info[:property_state]
+    }
+    
+    season_info = SeasonalIntelligenceService.determine_season(
+      property_address, 
+      'beekeeping'
+    )
+    
+    {
+      job_id: job_info[:job_number],
+      customer_name: customer_info[:display_name],
+      customer_email: customer_info[:primary_email],
+      property_address: property_address,
+      service_notes: notes_info[:formatted_notes],
+      season_info: season_info,
+      service_items: job_info[:line_items]
+    }
   end
   
   property_address = {
