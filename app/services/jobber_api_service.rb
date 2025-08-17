@@ -11,8 +11,10 @@ class JobberApiService
   end
 
   def fetch_visit_details(visit_id)
+    Rails.logger.info "🔍 Fetching visit details for: #{visit_id}"
+    
     query = <<~GRAPHQL
-      query GetVisitAndJob($visitId: EncodedId!) {
+      query GetVisitAndJob($visitId: ID!) {
         visit(id: $visitId) {
           id
           title
@@ -57,25 +59,54 @@ class JobberApiService
       }
     GRAPHQL
 
-    response = self.class.post('/', {
-      headers: {
-        'Authorization' => "Bearer #{@access_token}",
-        'Content-Type' => 'application/json'
-      },
-      body: {
-        query: query,
-        variables: { visitId: visit_id }
-      }.to_json
-    })
+    headers = {
+      'Authorization' => "Bearer #{@access_token}",
+      'Content-Type' => 'application/json',
+      'X-Jobber-GraphQL-Version' => '2025-04-16'
+    }
 
-    if response.success?
-      response.parsed_response
-    else
-      { error: "Failed to fetch visit data: #{response.code}" }
+    payload = {
+      query: query,
+      variables: { visitId: visit_id }
+    }
+
+    begin
+      response = HTTParty.post(
+        'https://api.getjobber.com/api/graphql',
+        headers: headers,
+        body: payload.to_json,
+        timeout: 30
+      )
+
+      Rails.logger.info "📡 Visit API Response code: #{response.code}"
+      Rails.logger.info "📡 Visit API Response body: #{response.body[0..500]}..." if response.body
+
+      if response.code == 200
+        parsed = response.parsed_response
+        
+        if parsed['errors']
+          Rails.logger.error "❌ GraphQL errors: #{parsed['errors']}"
+          return { error: "GraphQL errors: #{parsed['errors']}" }
+        elsif parsed['data'] && parsed['data']['visit']
+          Rails.logger.info "✅ Successfully fetched visit data"
+          return parsed['data']['visit']
+        else
+          Rails.logger.warn "⚠️ No visit data found"
+          return { error: "No visit data found" }
+        end
+      else
+        Rails.logger.error "❌ HTTP error: #{response.code}"
+        Rails.logger.error "❌ Response body: #{response.body}"
+        return { error: "HTTP error: #{response.code}" }
+      end
+
+    rescue StandardError => e
+      Rails.logger.error "❌ Exception fetching visit: #{e.message}"
+      return { error: "Exception: #{e.message}" }
     end
   end
-# ADD: Test connection method
-  # FIXED: Test connection method with proper nil handling
+
+  # Test connection method
   def self.test_connection(access_token)
     Rails.logger.info "🧪 Testing Jobber API connection..."
     
@@ -91,7 +122,7 @@ class JobberApiService
     headers = {
       'Authorization' => "Bearer #{access_token}",
       'Content-Type' => 'application/json',
-      'X-Jobber-GraphQL-Version' => '2023-11-15'
+      'X-Jobber-GraphQL-Version' => '2025-04-16'
     }
     
     payload = {
