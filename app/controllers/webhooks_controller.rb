@@ -55,9 +55,28 @@ class WebhooksController < ApplicationController
       access_token = get_access_token_for_account
       
       # Fetch real data from Jobber
-      jobber_data = JobberApiService.fetch_visit_details(visit_id, access_token)
-      puts "Jobber API response: #{jobber_data.inspect}"
-  
+      puts "🔍 Calling Jobber API with visit_id: #{visit_id}"
+      puts "🔑 Token (first 20 chars): #{access_token[0..20]}..." if access_token
+
+      begin
+        jobber_data = JobberApiService.fetch_visit_details(visit_id, access_token)
+        puts "📡 Raw Jobber API response: #{jobber_data.inspect}"
+        
+        if jobber_data.nil?
+          puts "❌ API returned nil - possible authentication or permissions issue"
+        elsif jobber_data.is_a?(Hash) && jobber_data['error']
+          puts "❌ API returned error: #{jobber_data['error']}"
+        elsif jobber_data.is_a?(Hash) && jobber_data['errors']
+          puts "❌ GraphQL errors: #{jobber_data['errors'].inspect}"
+        else
+          puts "✅ API returned data structure: #{jobber_data.keys if jobber_data.is_a?(Hash)}"
+        end
+      rescue => e
+        puts "💥 Exception calling Jobber API: #{e.message}"
+        puts "📚 Backtrace: #{e.backtrace[0..2]}"
+        jobber_data = nil
+      end
+
       if jobber_data && jobber_data['data'] && jobber_data['data']['visit']
         puts "✅ Successfully fetched real Jobber data"
         job_info = extract_real_job_info(jobber_data['data']['visit'])
