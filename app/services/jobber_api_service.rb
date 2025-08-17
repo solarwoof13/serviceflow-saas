@@ -14,7 +14,7 @@ class JobberApiService
     Rails.logger.info "🔍 Fetching visit details for: #{visit_id}"
     
     query = <<~GRAPHQL
-      query GetVisitAndJob($visitId: ID!) {
+      query GetVisitAndJob($visitId: EncodedId!) {
         visit(id: $visitId) {
           id
           title
