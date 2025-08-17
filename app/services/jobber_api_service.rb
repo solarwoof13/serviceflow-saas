@@ -75,6 +75,7 @@ class JobberApiService
     end
   end
 # ADD: Test connection method
+  # FIXED: Test connection method with proper nil handling
   def self.test_connection(access_token)
     Rails.logger.info "🧪 Testing Jobber API connection..."
     
@@ -105,18 +106,25 @@ class JobberApiService
         timeout: 10
       )
       
-      if response.code == 200
+      Rails.logger.info "📡 Test API Response code: #{response&.code}"
+      Rails.logger.info "📡 Test API Response body: #{response&.body}"
+      
+      if response && response.code == 200 && response.body.present?
         parsed = response.parsed_response
-        if parsed['data'] && parsed['data']['account']
+        Rails.logger.info "📡 Parsed response: #{parsed.inspect}"
+        
+        if parsed && parsed['data'] && parsed['data']['account']
           Rails.logger.info "✅ API connection successful! Account: #{parsed['data']['account']['name']}"
           return true
+        elsif parsed && parsed['errors']
+          Rails.logger.error "❌ GraphQL errors in test: #{parsed['errors']}"
+          return false
         else
-          Rails.logger.error "❌ API connection failed - no account data"
-          Rails.logger.error "❌ Response: #{parsed}"
+          Rails.logger.error "❌ API connection failed - unexpected response structure"
           return false
         end
       else
-        Rails.logger.error "❌ API connection failed - HTTP #{response.code}"
+        Rails.logger.error "❌ API connection failed - HTTP #{response&.code || 'nil response'}"
         return false
       end
     rescue StandardError => e
