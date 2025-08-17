@@ -84,7 +84,7 @@ class WebhooksController < ApplicationController
         jobber_data = nil
       end
 
-      if jobber_data && jobber_data['data'] && jobber_data['data']['visit']
+      if jobber_data && jobber_data['id'] && !jobber_data['error']
         puts "✅ Successfully fetched real Jobber data"
         job_info = extract_real_job_info(jobber_data['data']['visit'])
         customer_info = extract_real_customer_info(jobber_data['data']['visit'])
