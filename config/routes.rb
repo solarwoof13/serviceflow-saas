@@ -7,6 +7,7 @@ Rails.application.routes.draw do
   post "/webhooks/jobber", to: 'webhooks#jobber'
   get "/heartbeat", to: "application#heartbeat"
   get "/logout", to: "auth#logout"
+  get "/request_access_token", to: "auth#request_oauth2_access_token"
   post "/request_access_token", to: "auth#request_oauth2_access_token"
   get "/jobber_account_name", to: "jobber_accounts#jobber_account_name"
   get "/clients", to: "clients#index"
