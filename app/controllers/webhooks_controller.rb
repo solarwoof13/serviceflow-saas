@@ -76,9 +76,9 @@ class WebhooksController < ApplicationController
     
     # Fetch real data from Jobber
     access_token = get_access_token_for_account
-    jobber_data = JobberApiService.fetch_visit_details(visit_id, access_token)
-    
-    if jobber_data['data'] && jobber_data['data']['visit']
+    puts "Jobber API response: #{jobber_data.inspect}"
+
+     if jobber_data && jobber_data['data'] && jobber_data['data']['visit']
       puts "✅ Successfully fetched real Jobber data"
       job_info = extract_real_job_info(jobber_data['data']['visit'])
       customer_info = extract_real_customer_info(jobber_data['data']['visit'])
