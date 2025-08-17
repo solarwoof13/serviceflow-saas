@@ -97,28 +97,6 @@ class WebhooksController < ApplicationController
       service_items: job_info[:line_items]
     }
   end
-  
-  property_address = {
-    street: job_info[:property_street],
-    city: job_info[:property_city], 
-    province: job_info[:property_state]
-  }
-  
-  season_info = SeasonalIntelligenceService.determine_season(
-    property_address, 
-    'beekeeping'
-  )
-  
-  {
-    job_id: job_info[:job_number],
-    customer_name: customer_info[:display_name],
-    customer_email: customer_info[:primary_email],
-    property_address: property_address,
-    service_notes: notes_info[:formatted_notes],
-    season_info: season_info,
-    service_items: job_info[:line_items]
-  }
-end 
 
   def extract_job_info(data)
     {
@@ -209,6 +187,7 @@ end
       email_id: "sf_#{SecureRandom.hex(8)}"
     }
   end
+
   def extract_real_job_info(visit_data)
     job_data = visit_data['job'] || {}
     property_data = job_data['property'] || {}
@@ -264,7 +243,24 @@ end
   end
 
   def get_access_token_for_account
-    # For now, we'll add your token as environment variable
-    ENV['JOBBER_ACCESS_TOKEN'] || 'temp_token'
+    # First try environment variable (for production)
+    env_token = ENV['JOBBER_ACCESS_TOKEN']
+    if env_token.present?
+      puts "✅ Using environment token"
+      return env_token
+    end
+    
+    # Fallback to database
+    account = JobberAccount.first
+    
+    if account && account.valid_jobber_access_token?
+      account.jobber_access_token
+    elsif account
+      account.refresh_jobber_access_token!
+      account.jobber_access_token
+    else
+      puts "❌ No JobberAccount found, no environment token"
+      nil
+    end
   end
 end
