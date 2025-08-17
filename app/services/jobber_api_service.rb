@@ -74,4 +74,54 @@ class JobberApiService
       { error: "Failed to fetch visit data: #{response.code}" }
     end
   end
+# ADD: Test connection method
+  def self.test_connection(access_token)
+    Rails.logger.info "🧪 Testing Jobber API connection..."
+    
+    simple_query = <<~GRAPHQL
+      query TestQuery {
+        account {
+          id
+          name
+        }
+      }
+    GRAPHQL
+    
+    headers = {
+      'Authorization' => "Bearer #{access_token}",
+      'Content-Type' => 'application/json',
+      'X-Jobber-GraphQL-Version' => '2023-11-15'
+    }
+    
+    payload = {
+      query: simple_query
+    }
+    
+    begin
+      response = HTTParty.post(
+        'https://api.getjobber.com/api/graphql',
+        headers: headers,
+        body: payload.to_json,
+        timeout: 10
+      )
+      
+      if response.code == 200
+        parsed = response.parsed_response
+        if parsed['data'] && parsed['data']['account']
+          Rails.logger.info "✅ API connection successful! Account: #{parsed['data']['account']['name']}"
+          return true
+        else
+          Rails.logger.error "❌ API connection failed - no account data"
+          Rails.logger.error "❌ Response: #{parsed}"
+          return false
+        end
+      else
+        Rails.logger.error "❌ API connection failed - HTTP #{response.code}"
+        return false
+      end
+    rescue StandardError => e
+      Rails.logger.error "❌ API connection test failed: #{e.message}"
+      return false
+    end
+  end
 end
