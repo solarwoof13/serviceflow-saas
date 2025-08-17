@@ -86,9 +86,9 @@ class WebhooksController < ApplicationController
 
       if jobber_data && jobber_data['id'] && !jobber_data['error']
         puts "✅ Successfully fetched real Jobber data"
-        job_info = extract_real_job_info(jobber_data['data']['visit'])
-        customer_info = extract_real_customer_info(jobber_data['data']['visit'])
-        notes_info = extract_real_notes(jobber_data['data']['visit'])
+        job_info = extract_real_job_info(jobber_data)
+        customer_info = extract_real_customer_info(jobber_data)
+        notes_info = extract_real_notes(jobber_data)
       else
         puts "❌ Failed to fetch Jobber data, using fallback"
         job_info = extract_job_info(data)
