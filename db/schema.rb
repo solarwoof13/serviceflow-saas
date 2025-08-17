@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2022_06_03_170459) do
+ActiveRecord::Schema[7.2].define(version: 2025_08_17_023844) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -22,6 +22,9 @@ ActiveRecord::Schema[7.2].define(version: 2022_06_03_170459) do
     t.string "jobber_refresh_token"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "refresh_token"
+    t.datetime "token_expires_at"
+    t.boolean "needs_reauthorization", default: false
     t.index ["jobber_id"], name: "index_jobber_accounts_on_jobber_id", unique: true
   end
 end

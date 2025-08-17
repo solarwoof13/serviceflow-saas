@@ -272,21 +272,27 @@ class WebhooksController < ApplicationController
     # First try environment variable (for production)
     env_token = ENV['JOBBER_ACCESS_TOKEN']
     if env_token.present?
-      puts "✅ Using environment token"
+      puts "✅ Using environment token (manual mode)"
       return env_token
     end
     
-    # Fallback to database
+    # Use database with auto-refresh
     account = JobberAccount.first
     
-    if account && account.valid_jobber_access_token?
-      account.jobber_access_token
-    elsif account
-      account.refresh_jobber_access_token!
-      account.jobber_access_token
+    if account
+      puts "🔍 Found JobberAccount, checking token validity..."
+      token = account.get_valid_access_token
+      
+      if token
+        puts "✅ Got valid access token (auto-refreshed if needed)"
+        return token
+      else
+        puts "❌ Token refresh failed - account needs re-authorization"
+        return nil
+      end
     else
-      puts "❌ No JobberAccount found, no environment token"
-      nil
+      puts "❌ No JobberAccount found"
+      return nil
     end
   end
 end
