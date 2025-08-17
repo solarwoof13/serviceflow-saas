@@ -54,6 +54,13 @@ class WebhooksController < ApplicationController
       # Get access token for this account
       access_token = get_access_token_for_account
       
+      # ADD: Test API connection before making the real call
+      if JobberApiService.test_connection(access_token)
+        puts "✅ API connection verified - proceeding with visit query"
+      else
+        puts "❌ API connection failed - check token and permissions"
+      end
+      
       # Fetch real data from Jobber
       puts "🔍 Calling Jobber API with visit_id: #{visit_id}"
       puts "🔑 Token (first 20 chars): #{access_token[0..20]}..." if access_token
