@@ -12,6 +12,13 @@ class WebhooksController < ApplicationController
 
     ai_response = AiService.generate_customer_email(ai_prompt[:full_prompt])
 
+    # DEBUG:
+    Rails.logger.info "🔍 AI Response Debug:"
+    Rails.logger.info "   Success: #{ai_response[:success]}"
+    Rails.logger.info "   Email content present?: #{ai_response[:email_content].present?}"
+    Rails.logger.info "   Email content class: #{ai_response[:email_content].class}"
+    Rails.logger.info "   Email content value: #{ai_response[:email_content].inspect[0..200]}..."
+
     if ai_response[:success]
       puts "✅ AI Email Generated Successfully!"
       puts "Email preview: #{ai_response[:email_content][0..200]}..."
