@@ -98,38 +98,22 @@ class JobberService
   end
 
   def refresh_access_token(account)
-  raise Exceptions::AuthorizationException if account.jobber_access_token.blank?
+    raise Exceptions::AuthorizationException if account.jobber_access_token.blank?
 
-  credentials = {
-    token_type: "bearer",
-    access_token: account.jobber_access_token,
-    expires_at: account.token_expires_at,
-    refresh_token: account.refresh_token
-  }
+    credentials = {
+      token_type: "bearer",
+      access_token: account.jobber_access_token,
+      expires_at: account.token_expires_at,  # Updated to correct column
+      refresh_token: account.refresh_token   # Updated to correct column
+    }
 
-  tokens = OAuth2::AccessToken.from_hash(@oauth_client, credentials)
-  begin
-      tokens = tokens.refresh!
-      return if tokens.nil?
+    tokens = OAuth2::AccessToken.from_hash(@oauth_client, credentials)  # Use instance client
+    tokens = tokens.refresh!
+    return if tokens.nil?
 
-      tokens = tokens.to_hash
-      tokens[:expires_at] = tokens[:expires_at]  # Gem handles
-      account.update!(
-        jobber_access_token: tokens[:access_token],
-        refresh_token: tokens[:refresh_token],  # Update if rotation gives new one
-        token_expires_at: tokens[:expires_at]
-      )
-      Rails.logger.info "✅ Token refresh successful!"
-      tokens
-    rescue OAuth2::Error => e
-      Rails.logger.error "❌ Refresh failed: #{e.message}"
-      if e.message.include?("refresh token is not valid") || e.response.status == 400
-        account.update!(jobber_access_token: nil, refresh_token: nil, needs_reauthorization: true)
-        raise Exceptions::AuthorizationException, "Refresh token invalid—user needs reauth"
-      else
-        raise
-      end
-    end
+    tokens = tokens.to_hash
+    tokens[:expires_at] = tokens[:expires_at]  # Already handled by gem
+    tokens
   end
 
   def authorization_url(redirect_uri:)
