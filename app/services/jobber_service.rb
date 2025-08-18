@@ -58,11 +58,11 @@ class JobberService
   end
 
   def update_account_tokens(account_params, tokens)
-    account = JobberAccount.find_or_create_by({ jobber_id: account_params[:jobber_id] })
-    account.name = account_params[:name]
+    account = JobberAccount.find_or_create_by({ account_id: account_params[:jobber_id] })
+    account.name = account_params[:name] if account_params[:name]
     account.jobber_access_token = tokens[:access_token]
-    account.jobber_access_token_expired_by = tokens[:expires_at]
-    account.jobber_refresh_token = tokens[:refresh_token]
+    account.token_expires_at = tokens[:expires_at]               # ✅ Correct column
+    account.refresh_token = tokens[:refresh_token]               # ✅ Correct column
     account.save!
     account
   end
