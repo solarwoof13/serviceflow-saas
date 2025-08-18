@@ -80,6 +80,13 @@ class AiService
     })
     
     if response.success?
+
+      # DEBUG:
+      Rails.logger.info "🔍 Raw Grok Response:"
+      Rails.logger.info "   Status: #{response.code}"
+      Rails.logger.info "   Body: #{response.body[0..500]}..."
+      Rails.logger.info "   Parsed: #{response.parsed_response.inspect[0..500]}..."
+
       email_content = response.parsed_response.dig('choices', 0, 'message', 'content')
       usage_data = response.parsed_response['usage']
       
