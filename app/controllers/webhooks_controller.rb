@@ -16,25 +16,11 @@ class WebhooksController < ApplicationController
       puts "✅ AI Email Generated Successfully!"
       puts "Email preview: #{ai_response[:email_content][0..200]}..."
       
-      def send_customer_email(to:, subject:, content:)
-        # Use the new EmailService instead of mock
-        result = EmailService.send_customer_email(
-          to: to,
-          subject: subject, 
-          content: content,
-          from_name: "Host a Hive Beekeeping Services"
-        )
-        
-        if result[:success]
-          puts "✅ Email sent successfully!"
-          puts "   Provider: #{result[:provider]}"
-          puts "   Email ID: #{result[:email_id]}" 
-        else
-          puts "❌ Email failed: #{result[:error]}"
-        end
-        
-        result
-      end
+      email_sent = send_customer_email(
+        to: processed_data[:customer_email],
+        subject: "Service Update for #{processed_data[:customer_name]}",
+        content: ai_response[:email_content]
+      )
       
       puts email_sent[:success] ? "✅ Email sent!" : "❌ Email failed: #{email_sent[:error]}"
     else
@@ -271,16 +257,23 @@ class WebhooksController < ApplicationController
   end
 
   def send_customer_email(to:, subject:, content:)
-    puts "📧 SENDING EMAIL:"
-    puts "To: #{to}"
-    puts "Subject: #{subject}"
-    puts "Content: #{content[0..100]}..."
+    # Use the new EmailService instead of mock
+    result = EmailService.send_customer_email(
+      to: to,
+      subject: subject, 
+      content: content,
+      from_name: "Host a Hive Beekeeping Services"
+    )
     
-    {
-      success: true,
-      message: "Email sent successfully (mock)",
-      email_id: "sf_#{SecureRandom.hex(8)}"
-    }
+    if result[:success]
+      puts "✅ Email sent successfully!"
+      puts "   Provider: #{result[:provider]}"
+      puts "   Email ID: #{result[:email_id]}" 
+    else
+      puts "❌ Email failed: #{result[:error]}"
+    end
+    
+    result
   end
 
   def extract_real_job_info(visit_data)
