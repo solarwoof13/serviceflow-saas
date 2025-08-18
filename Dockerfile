@@ -1,9 +1,11 @@
-FROM ruby:3.0.1-slim
+FROM ruby:3.3.0-slim
 
 ENV BUNDLE_VERSION=2.2.32
 
+# Update to use current Debian repositories
 RUN apt-get update -qq \
-    && apt-get install -y git build-essential libpq-dev
+    && apt-get install -y git build-essential libpq-dev curl nodejs npm \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir /app
 WORKDIR /app
