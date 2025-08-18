@@ -13,17 +13,40 @@ class EmailService
   end
   
   def send_customer_email(to:, subject:, content:, from_name: nil)
+    # ENHANCED DEBUGGING: Check content before processing
+    Rails.logger.info "🔍 EmailService received content:"
+    Rails.logger.info "   Content class: #{content.class}"
+    Rails.logger.info "   Content nil?: #{content.nil?}"
+    Rails.logger.info "   Content empty?: #{content.respond_to?(:empty?) ? content.empty? : 'N/A'}"
+    Rails.logger.info "   Content length: #{content.respond_to?(:length) ? content.length : 'N/A'}"
+    Rails.logger.info "   Content value: #{content.inspect[0..200]}..."
+    
+    # FIX: Handle nil or empty content
+    if content.nil? || content.to_s.strip.empty?
+      error_msg = "Email content is nil or empty - cannot send email"
+      Rails.logger.error "❌ #{error_msg}"
+      return {
+        success: false,
+        error: error_msg,
+        provider: 'sendgrid'
+      }
+    end
+    
+    # CONVERT content to string and strip whitespace
+    content_string = content.to_s.strip
+    
     # Check if SendGrid is configured
     unless @api_key.present?
       Rails.logger.warn "📧 SENDGRID_API_KEY not found - using mock email"
-      return mock_email_response(to, subject, content)
+      return mock_email_response(to, subject, content_string)
     end
     
     Rails.logger.info "📧 Sending email via SendGrid..."
     Rails.logger.info "   To: #{to}"
     Rails.logger.info "   Subject: #{subject}"
     Rails.logger.info "   From: #{@from_email}"
-    Rails.logger.info "   Content length: #{content.length} characters"
+    Rails.logger.info "   Content length: #{content_string.length} characters"
+    Rails.logger.info "   Content preview: #{content_string[0..100]}..."
     
     begin
       # Create email payload using SendGrid's expected format
@@ -41,10 +64,13 @@ class EmailService
         content: [
           {
             type: 'text/plain',
-            value: content
+            value: content_string  # Use the cleaned content string
           }
         ]
       }
+      
+      # ADDITIONAL DEBUG: Log the exact payload being sent
+      Rails.logger.info "🔍 SendGrid payload content value: #{mail_data[:content][0][:value][0..100]}..."
       
       # Send via SendGrid
       sg = SendGrid::API.new(api_key: @api_key)
