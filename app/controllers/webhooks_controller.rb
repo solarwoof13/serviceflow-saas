@@ -36,7 +36,7 @@ class WebhooksController < ApplicationController
         result
       end
       
-      puts result[:success] ? "✅ Email sent!" : "❌ Email failed: #{result[:error]}"
+      puts email_sent[:success] ? "✅ Email sent!" : "❌ Email failed: #{email_sent[:error]}"
     else
       puts "❌ AI generation failed: #{ai_response[:error]}"
     end
