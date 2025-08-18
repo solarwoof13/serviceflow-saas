@@ -42,7 +42,7 @@ class OauthRefreshService
           account.update!(
             jobber_access_token: token_data['access_token'],
             refresh_token: token_data['refresh_token'], # New refresh token
-            token_expires_at: Time.current + token_data['expires_in'].seconds
+            token_expires_at: token_data['expires_in'] ? Time.current + token_data['expires_in'].seconds : nil
           )
           
           Rails.logger.info "✅ Account tokens updated successfully"
