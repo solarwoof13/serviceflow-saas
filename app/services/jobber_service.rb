@@ -3,6 +3,22 @@
 class JobberService
   include Graphql::Queries::Account
 
+  JOBBER_SITE = 'https://api.getjobber.com'
+  JOBBER_AUTHORIZE_PATH = '/api/oauth/authorize'
+  JOBBER_TOKEN_PATH = '/api/oauth/token'
+
+  def initialize
+    @client_id = ENV['JOBBER_CLIENT_ID'] || Rails.configuration.x.jobber.client_id
+    @client_secret = ENV['JOBBER_CLIENT_SECRET'] || Rails.configuration.x.jobber.client_secret
+    @oauth_client = OAuth2::Client.new(
+      @client_id,
+      @client_secret,
+      site: JOBBER_SITE,
+      authorize_url: JOBBER_AUTHORIZE_PATH,
+      token_url: JOBBER_TOKEN_PATH
+    )
+  end
+
   def execute_query(token, query, variables = {}, expected_cost: nil)
     context = { Authorization: "Bearer #{token}" }
     result = JobberAppTemplateRailsApi::Client.query(query, variables: variables, context: context)
@@ -35,12 +51,25 @@ class JobberService
   end
 
   def create_oauth2_access_token(code)
-    tokens = client.auth_code.get_token(code)
-    return if tokens.nil?
+    return {} if code.blank?
 
-    tokens = tokens.to_hash
-    tokens[:expires_at] = Time.at(JWT.decode(tokens[:access_token], nil, false).first["exp"]).utc.to_time
-    tokens
+    redirect_uri = "#{ENV['APP_BASE_URL'] || 'https://serviceflow-saas.onrender.com'}/request_access_token"
+
+    begin
+      token = @oauth_client.auth_code.get_token(code, redirect_uri: redirect_uri)
+      {
+        access_token: token.token,
+        refresh_token: token.refresh_token,
+        expires_at: token.expires_at,  # Handled by OAuth2 gem from expires_in
+        expires_in: token.expires_in
+      }
+    rescue OAuth2::Error => e
+      Rails.logger.error "❌ OAuth token exchange failed: #{e.message} (Code: #{e.response.status}, Body: #{e.response.body})"
+      {}
+    rescue Faraday::ConnectionFailed => e
+      Rails.logger.error "❌ OAuth connection error: #{e.message}"
+      {}
+    end
   end
 
   def authenticate_account(tokens)
@@ -61,8 +90,9 @@ class JobberService
     account = JobberAccount.find_or_create_by({ account_id: account_params[:jobber_id] })
     account.name = account_params[:name] if account_params[:name]
     account.jobber_access_token = tokens[:access_token]
-    account.token_expires_at = tokens[:expires_at]               # ✅ Correct column
-    account.refresh_token = tokens[:refresh_token]               # ✅ Correct column
+    account.token_expires_at = tokens[:expires_at]               # Correct column
+    account.refresh_token = tokens[:refresh_token]               # Correct column
+    account.needs_reauthorization = false                        # Ensure reauthorization flag is reset
     account.save!
     account
   end
@@ -73,48 +103,24 @@ class JobberService
     credentials = {
       token_type: "bearer",
       access_token: account.jobber_access_token,
-      expires_at: account.jobber_access_token_expired_by,
-      refresh_token: account.jobber_refresh_token,
+      expires_at: account.token_expires_at,  # Updated to correct column
+      refresh_token: account.refresh_token   # Updated to correct column
     }
 
-    tokens = OAuth2::AccessToken.from_hash(client, credentials)
+    tokens = OAuth2::AccessToken.from_hash(@oauth_client, credentials)  # Use instance client
     tokens = tokens.refresh!
     return if tokens.nil?
 
     tokens = tokens.to_hash
-    tokens[:expires_at] = Time.at(JWT.decode(tokens[:access_token], nil, false).first["exp"]).utc.to_time
+    tokens[:expires_at] = tokens[:expires_at]  # Already handled by gem
     tokens
   end
 
   def authorization_url(redirect_uri:)
-    params = {
-      client_id: client_id,
-      response_type: 'code',
-      redirect_uri: redirect_uri,
-      scope: 'read write'
-    }
-    
-    query_string = URI.encode_www_form(params)
-    "https://api.getjobber.com/api/oauth/authorize?#{query_string}"
+    @oauth_client.auth_code.authorize_url(redirect_uri: redirect_uri, scope: 'read write')
   end
 
   private
-
-  def client
-    OAuth2::Client.new(client_id, client_secret, site: api_url)
-  end
-
-  def client_id
-    Rails.configuration.x.jobber.client_id
-  end
-
-  def client_secret
-    Rails.configuration.x.jobber.client_secret
-  end
-
-  def api_url
-    Rails.configuration.x.jobber.api_url
-  end
 
   def result_has_errors?(result)
     return false if result["errors"].nil?
