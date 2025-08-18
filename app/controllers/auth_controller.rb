@@ -13,17 +13,26 @@ class AuthController < ApplicationController
   end
 
   def jobber_oauth
-    puts "=== STARTING OAUTH FLOW ==="
-    puts "Base URL: #{request.base_url}"
-    
-    jobber_service = JobberService.new
-    redirect_uri = "#{request.base_url}/request_access_token"
-    puts "Redirect URI: #{redirect_uri}"
-    
-    authorization_url = jobber_service.authorization_url(redirect_uri: redirect_uri)
-    puts "Auth URL: #{authorization_url}"
-    
-    redirect_to authorization_url, allow_other_host: true
+    begin
+      puts "=== STARTING OAUTH FLOW ==="
+      puts "Base URL: #{request.base_url}"
+      
+      jobber_service = JobberService.new
+      redirect_uri = "#{request.base_url}/request_access_token"
+      puts "Redirect URI: #{redirect_uri}"
+      
+      authorization_url = jobber_service.authorization_url(redirect_uri: redirect_uri)
+      puts "Auth URL: #{authorization_url}"
+      
+      redirect_to authorization_url, allow_other_host: true
+    rescue => e
+      Rails.logger.error "❌ OAuth Error: #{e.message}"  # Use Rails.logger for better Render logging
+      Rails.logger.error "Backtrace: #{e.backtrace[0..3].join("\n")}"
+      render json: { 
+        error: "OAuth setup failed: #{e.message}", 
+        details: "Check Render logs for more info. Possible issues: Missing JOBBER_CLIENT_ID/SECRET or invalid redirect URI in Jobber Developer Center." 
+      }, status: 500
+    end
   end
 
   def request_oauth2_access_token
