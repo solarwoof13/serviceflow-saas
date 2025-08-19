@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_08_18_191301) do
+ActiveRecord::Schema[7.2].define(version: 2025_08_19_015605) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -29,4 +29,34 @@ ActiveRecord::Schema[7.2].define(version: 2025_08_18_191301) do
     t.index ["account_id"], name: "index_jobber_accounts_on_account_id", unique: true
     t.index ["jobber_id"], name: "index_jobber_accounts_on_jobber_id", unique: true
   end
+
+  create_table "service_provider_profiles", force: :cascade do |t|
+    t.bigint "jobber_account_id", null: false
+    t.string "company_name", null: false
+    t.text "company_description"
+    t.string "years_in_business"
+    t.jsonb "service_areas", default: []
+    t.string "main_service_type"
+    t.text "service_details"
+    t.text "equipment_methods"
+    t.text "unique_selling_points"
+    t.string "certifications_licenses"
+    t.text "local_expertise"
+    t.text "spring_services"
+    t.text "summer_services"
+    t.text "fall_services"
+    t.text "winter_services"
+    t.string "email_tone", default: "professional"
+    t.text "always_include"
+    t.text "never_mention"
+    t.boolean "profile_completed", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["jobber_account_id"], name: "idx_spp_jobber_account"
+    t.index ["jobber_account_id"], name: "index_service_provider_profiles_on_jobber_account_id"
+    t.index ["main_service_type"], name: "idx_spp_service_type"
+    t.index ["service_areas"], name: "idx_spp_service_areas", using: :gin
+  end
+
+  add_foreign_key "service_provider_profiles", "jobber_accounts"
 end

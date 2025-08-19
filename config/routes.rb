@@ -15,5 +15,12 @@ Rails.application.routes.draw do
   namespace :webhooks do
     post "/", to: "webhook_receiver#index"
   end
+
+  # Add API namespace for service provider profiles
+  namespace :api do
+    namespace :v1 do
+      resource :service_provider_profile, only: [:show, :create, :update]
+    end
+  end
 end
 

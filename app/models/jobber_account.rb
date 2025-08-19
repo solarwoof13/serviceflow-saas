@@ -37,4 +37,11 @@ class JobberAccount < ApplicationRecord
       needs_reauthorization: true
     )
   end
+  
+  has_one :service_provider_profile, dependent: :destroy
+  
+  # Helper method to get or create profile
+  def get_or_create_profile
+    service_provider_profile || create_service_provider_profile
+  end
 end
