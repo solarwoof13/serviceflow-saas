@@ -10,6 +10,7 @@ class JobberApiService
     @access_token = access_token
   end
 
+  
   def fetch_visit_details(visit_id)
     Rails.logger.info "🔍 Fetching visit details for: #{visit_id}"
     
@@ -21,6 +22,10 @@ class JobberApiService
           job {
             id
             jobNumber
+            account {
+              id
+              name
+            }
             client {
               id
               firstName

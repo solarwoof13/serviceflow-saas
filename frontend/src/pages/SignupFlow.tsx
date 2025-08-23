@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { ArrowRight, ArrowLeft, CheckCircle, Brain, Loader, AlertCircle } from 'lucide-react';
 import { serviceProviderAPI, ServiceProviderProfile } from '../services/api';
+import AiEnhancementButton from '../components/AiEnhancementButton';
 
 // Types
 interface BusinessProfile {
@@ -365,6 +366,15 @@ const SignupFlow: React.FC = () => {
                 value={businessProfile.companyDescription}
                 onChange={(e) => updateProfile('companyDescription', e.target.value)}
               />
+               <AiEnhancementButton
+                  text={businessProfile.companyDescription}
+                  onEnhance={(enhanced) => updateProfile('companyDescription', enhanced)}
+                  enhancementType="company_description"
+                  context={{
+                    service_type: businessProfile.mainServiceType,
+                    years_in_business: businessProfile.yearsInBusiness
+                  }}
+                />
               <HelpText>This helps our AI understand your expertise level and business personality</HelpText>
             </FormGroup>
 
@@ -418,6 +428,15 @@ const SignupFlow: React.FC = () => {
                 value={businessProfile.serviceDetails}
                 onChange={(e) => updateProfile('serviceDetails', e.target.value)}
               />
+              <AiEnhancementButton
+                text={businessProfile.serviceDetails}
+                onEnhance={(enhanced) => updateProfile('serviceDetails', enhanced)}
+                enhancementType="service_details"
+                context={{
+                  service_type: businessProfile.mainServiceType,
+                  years_in_business: businessProfile.yearsInBusiness
+                }}
+              />
               <HelpText>Include your methods, equipment, and any specialties</HelpText>
             </FormGroup>
 
@@ -447,6 +466,15 @@ const SignupFlow: React.FC = () => {
                 value={businessProfile.uniqueSellingPoints}
                 onChange={(e) => updateProfile('uniqueSellingPoints', e.target.value)}
               />
+              <AiEnhancementButton
+                text={businessProfile.uniqueSellingPoints}
+                onEnhance={(enhanced) => updateProfile('uniqueSellingPoints', enhanced)}
+                enhancementType="unique_selling_points"
+                context={{
+                  service_type: businessProfile.mainServiceType,
+                  years_in_business: businessProfile.yearsInBusiness
+                }}
+              />
               <HelpText>What do customers choose you over competitors? Certifications, experience, guarantees, methods...</HelpText>
             </FormGroup>
 
@@ -456,6 +484,15 @@ const SignupFlow: React.FC = () => {
                 placeholder="e.g., Experience with Minnesota/Wisconsin climate, late spring buildup management, winter survival techniques for northern climates..."
                 value={businessProfile.localExpertise}
                 onChange={(e) => updateProfile('localExpertise', e.target.value)}
+              />
+              <AiEnhancementButton
+                text={businessProfile.localExpertise}
+                onEnhance={(enhanced) => updateProfile('localExpertise', enhanced)}
+                enhancementType="local_expertise"
+                context={{
+                  service_type: businessProfile.mainServiceType,
+                  years_in_business: businessProfile.yearsInBusiness
+                }}
               />
               <HelpText>What local knowledge should we mention? Climate, regulations, regional challenges...</HelpText>
             </FormGroup>

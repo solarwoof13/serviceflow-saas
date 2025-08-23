@@ -1,3 +1,4 @@
+# Replace your entire webhooks_controller.rb with this complete version
 class WebhooksController < ApplicationController
   def jobber
     puts "=== SERVICEFLOW WEBHOOK RECEIVED ==="
@@ -5,41 +6,37 @@ class WebhooksController < ApplicationController
     webhook_data = params.except(:controller, :action, :webhook)
     puts "Webhook data: #{webhook_data}"
     
-    processed_data = process_jobber_data(webhook_data)
-    ai_prompt = generate_ai_prompt(processed_data)
+    # Get the JobberAccount for this webhook with enhanced identification
+    jobber_account = get_jobber_account_for_webhook(webhook_data)
     
-    puts "Generated AI prompt: #{ai_prompt[:preview]}"
-
-    ai_response = AiService.generate_customer_email(ai_prompt[:full_prompt])
-
-    # DEBUG:
-    Rails.logger.info "🔍 AI Response Debug:"
-    Rails.logger.info "   Success: #{ai_response[:success]}"
-    Rails.logger.info "   Email content present?: #{ai_response[:email_content].present?}"
-    Rails.logger.info "   Email content class: #{ai_response[:email_content].class}"
-    Rails.logger.info "   Email content value: #{ai_response[:email_content].inspect[0..200]}..."
-
-    if ai_response[:success]
-      puts "✅ AI Email Generated Successfully!"
-      puts "Email preview: #{ai_response[:email_content][0..200]}..."
-      
-      email_sent = send_customer_email(
-        to: processed_data[:customer_email],
-        subject: "Service Update for #{processed_data[:customer_name]}",
-        content: ai_response[:email_content]
-      )
-      
-      puts email_sent[:success] ? "✅ Email sent!" : "❌ Email failed: #{email_sent[:error]}"
+    unless jobber_account
+      puts "❌ No JobberAccount found - using fallback processing"
+      render json: { error: 'Account not found' }, status: :not_found
+      return
+    end
+    
+    # Process with enhanced business intelligence
+    processed_data = process_jobber_data_enhanced(webhook_data, jobber_account)
+    
+    # Generate AI email using new CustomerEmailService
+    email_result = generate_and_send_enhanced_email(processed_data, jobber_account)
+    
+    if email_result[:success]
+      puts "✅ Enhanced AI Email Generated and Sent!"
+      puts "Email subject: #{email_result[:subject]}"
+      puts "Email preview: #{email_result[:email_content][0..200]}..."
     else
-      puts "❌ AI generation failed: #{ai_response[:error]}"
+      puts "❌ Enhanced email generation failed: #{email_result[:error]}"
     end
     
     render json: { 
       status: 'processed',
       job_id: processed_data[:job_id],
       customer: processed_data[:customer_name],
-      season: processed_data[:season_info],
-      prompt_ready: true
+      business_profile_used: jobber_account.service_provider_profile.present?,
+      ai_generated: email_result[:success],
+      email_sent: email_result[:email_sent],
+      account_used: jobber_account.name
     }
   rescue => e
     puts "Error processing webhook: #{e.message}"
@@ -47,321 +44,289 @@ class WebhooksController < ApplicationController
     render json: { error: e.message }, status: 500
   end
 
-  def process_jobber_data_enhanced(data)
-    puts "Processing Jobber data with enhanced logic..."
+  private
+
+  def get_jobber_account_for_webhook(webhook_data)
+    Rails.logger.info "🔍 Identifying JobberAccount from webhook..."
+    
+    # Try to extract account ID from webhook
+    webhook_account_id = webhook_data.dig("data", "account", "id") || 
+                         webhook_data["account_id"]
+    
+    if webhook_account_id
+      Rails.logger.info "📡 Webhook contains account ID: #{webhook_account_id}"
+      account = JobberAccount.find_by(account_id: webhook_account_id)
+      
+      if account
+        Rails.logger.info "✅ Found JobberAccount by webhook account_id: #{account.name}"
+        puts "✅ Found JobberAccount by webhook account_id: #{account.name}"
+        return account
+      else
+        Rails.logger.warn "⚠️ No JobberAccount found for webhook account_id: #{webhook_account_id}"
+        puts "⚠️ No JobberAccount found for webhook account_id: #{webhook_account_id}"
+      end
+    else
+      Rails.logger.info "📡 No account ID in webhook, will fetch from API..."
+      puts "📡 No account ID in webhook, will fetch from API..."
+    end
+    
+    # Fallback: Try to get account ID from visit data via API
+    visit_id = webhook_data.dig("data", "webHookEvent", "itemId")
+    
+    if visit_id
+      Rails.logger.info "🔍 Fetching account ID from visit: #{visit_id}"
+      puts "🔍 Fetching account ID from visit: #{visit_id}"
+      account = find_account_by_visit_id(visit_id)
+      
+      if account
+        Rails.logger.info "✅ Found JobberAccount via API lookup: #{account.name}"
+        puts "✅ Found JobberAccount via API lookup: #{account.name}"
+        return account
+      end
+    end
+    
+    # REMOVED DANGEROUS FALLBACK - No random account selection!
+    Rails.logger.error "❌ No JobberAccount found for this webhook - rejecting request"
+    puts "❌ No JobberAccount found for this webhook - rejecting request"
+    nil
+  end
+
+  def find_account_by_visit_id(visit_id)
+    # Development test mode: if visit_id is a test ID, use first account
+    if Rails.env.development? && visit_id.to_s.include?('test_visit')
+      Rails.logger.info "🧪 Development test mode: using first account for test visit"
+      puts "🧪 Development test mode: using first account for test visit"
+      return JobberAccount.first
+    end
+    
+    # Try each account until we find one that can access this visit
+    JobberAccount.find_each do |account|
+      next unless account.jobber_access_token
+      
+      Rails.logger.info "🧪 Testing account: #{account.name}"
+      puts "🧪 Testing account: #{account.name}"
+      
+      begin
+        visit_data = JobberApiService.fetch_visit_details(visit_id, account.jobber_access_token)
+        
+        if visit_data && visit_data['job'] && visit_data['job']['account']
+          api_account_id = visit_data['job']['account']['id']
+          
+          Rails.logger.info "📡 Visit belongs to account: #{api_account_id}"
+          puts "📡 Visit belongs to account: #{api_account_id}"
+          
+          # Update our database with the correct account ID if needed
+          if account.account_id != api_account_id
+            Rails.logger.info "🔄 Updating account ID: #{account.account_id} → #{api_account_id}"
+            puts "🔄 Updating account ID: #{account.account_id} → #{api_account_id}"
+            account.update(account_id: api_account_id)
+          end
+          
+          return account
+        end
+      rescue => e
+        Rails.logger.info "⚠️ Account #{account.name} cannot access visit: #{e.message}"
+        puts "⚠️ Account #{account.name} cannot access visit: #{e.message}"
+        next
+      end
+    end
+    
+    nil
+  end
+
+  def process_jobber_data_enhanced(webhook_data, jobber_account)
+    puts "Processing Jobber data with enhanced business intelligence..."
     
     # Extract visit ID from real Jobber webhook
-    visit_id = data.dig("data", "webHookEvent", "itemId")
+    visit_id = webhook_data.dig("data", "webHookEvent", "itemId")
     
     if visit_id
       puts "Found visit ID: #{visit_id}"
-      access_token = get_access_token_for_account
+      access_token = jobber_account.get_valid_access_token
       
       begin
         jobber_data = JobberApiService.fetch_visit_details(visit_id, access_token)
         
         if jobber_data && jobber_data['id'] && !jobber_data['error']
           puts "✅ Successfully fetched real Jobber data"
-          return process_with_n8n_logic(jobber_data)
+          return extract_enhanced_visit_data(jobber_data, jobber_account)
         else
-          puts "❌ Failed to fetch Jobber data, using fallback"
-          return process_fallback_enhanced(data)
+          puts "❌ Failed to fetch Jobber data, using enhanced fallback"
+          return generate_enhanced_fallback_data(jobber_account)
         end
       rescue => e
         puts "💥 Exception calling Jobber API: #{e.message}"
-        return process_fallback_enhanced(data)
+        return generate_enhanced_fallback_data(jobber_account)
       end
     else
-      puts "No visit ID found, using test data"
-      return process_fallback_enhanced(data)
+      puts "No visit ID found, using enhanced test data"
+      return generate_enhanced_fallback_data(jobber_account)
     end
   end
 
-  private
-
-  def process_jobber_data(data)
-    puts "Processing Jobber data for automation..."
-    
-    # Extract visit ID from real Jobber webhook
-    visit_id = data.dig("data", "webHookEvent", "itemId")
-    
-    if visit_id
-      puts "Found visit ID: #{visit_id}"
-      
-      # Get access token for this account
-      access_token = get_access_token_for_account
-      
-      # ADD: Test API connection before making the real call
-      if JobberApiService.test_connection(access_token)
-        puts "✅ API connection verified - proceeding with visit query"
-      else
-        puts "❌ API connection failed - check token and permissions"
-      end
-      
-      # Fetch real data from Jobber
-      puts "🔍 Calling Jobber API with visit_id: #{visit_id}"
-      puts "🔑 Token (first 20 chars): #{access_token[0..20]}..." if access_token
-
-      begin
-        jobber_data = JobberApiService.fetch_visit_details(visit_id, access_token)
-        puts "📡 Raw Jobber API response: #{jobber_data.inspect}"
-        
-        if jobber_data.nil?
-          puts "❌ API returned nil - possible authentication or permissions issue"
-        elsif jobber_data.is_a?(Hash) && jobber_data['error']
-          puts "❌ API returned error: #{jobber_data['error']}"
-        elsif jobber_data.is_a?(Hash) && jobber_data['errors']
-          puts "❌ GraphQL errors: #{jobber_data['errors'].inspect}"
-        else
-          puts "✅ API returned data structure: #{jobber_data.keys if jobber_data.is_a?(Hash)}"
-        end
-      rescue => e
-        puts "💥 Exception calling Jobber API: #{e.message}"
-        puts "📚 Backtrace: #{e.backtrace[0..2]}"
-        jobber_data = nil
-      end
-
-      if jobber_data && jobber_data['id'] && !jobber_data['error']
-        puts "✅ Successfully fetched real Jobber data"
-        job_info = extract_real_job_info(jobber_data)
-        customer_info = extract_real_customer_info(jobber_data)
-        notes_info = extract_real_notes(jobber_data)
-      else
-        puts "❌ Failed to fetch Jobber data, using fallback"
-        job_info = extract_job_info(data)
-        customer_info = extract_customer_info(data)
-        notes_info = extract_and_process_notes(data)
-      end
-    else
-      puts "No visit ID found, using test data"
-      job_info = extract_job_info(data)
-      customer_info = extract_customer_info(data)
-      notes_info = extract_and_process_notes(data)
-    end
-    
-    property_address = {
-      street: job_info[:property_street],
-      city: job_info[:property_city], 
-      province: job_info[:property_state]
-    }
-    
-    season_info = SeasonalIntelligenceService.determine_season(
-      property_address, 
-      'beekeeping'
-    )
-    
-    {
-      job_id: job_info[:job_number],
-      customer_name: customer_info[:display_name],
-      customer_email: customer_info[:primary_email],
-      property_address: property_address,
-      service_notes: notes_info[:formatted_notes],
-      season_info: season_info,
-      service_items: job_info[:line_items]
-    }
-  end
-
-  def process_with_n8n_logic(api_response)
-    # This will use your existing fallback for now since we don't have real API data
-    process_fallback_enhanced({})
-  end
-
-  def process_fallback_enhanced(data)
-    # Enhanced test data that matches your real scenario
-    {
-      customer_name: "Tester One",
-      customer_email: "solarharvey79@gmail.com",
-      property_address: {
-        street: "N7373 950th Street",
-        city: "River Falls", 
-        province: "WI"
-      },
-      service_notes: "Observed thriving hive with strong colony. Added honey super to manage population and prevent swarming. Noticed moss buildup on exterior - will clean next visit.",
-      season_info: {
-        season: "Summer",
-        reasoning: "Based on current month (August) in Wisconsin"
-      },
-      service_items: "Hive inspection and maintenance",
-      job_id: "320"
-    }
-  end
-
-  def extract_job_info(data)
-    {
-      job_number: data[:job_number] || data["job_number"] || "SF-#{rand(1000..9999)}",
-      property_street: data[:property_address] || data["property_address"] || "123 Bee Lane",
-      property_city: data[:city] || data["city"] || "Austin",
-      property_state: data[:state] || data["state"] || "TX",
-      line_items: data[:services] || data["services"] || "Hive inspection"
-    }
-  end
-
-  def extract_customer_info(data)
-    company_name = data[:company_name] || data["company_name"]
-    first_name = data[:first_name] || data["first_name"] || "John"
-    last_name = data[:last_name] || data["last_name"] || "Smith"
-    email = data[:email] || data["email"] || "customer@example.com"
-    
-    display_name = if company_name.present?
-      company_name
-    else
-      "#{first_name} #{last_name}".strip
-    end
-    
-    {
-      display_name: display_name,
-      primary_email: email
-    }
-  end
-
-  def extract_and_process_notes(data)
-    raw_notes = data[:notes] || data["notes"] || "Service completed successfully."
-    
-    {
-      formatted_notes: raw_notes,
-      note_count: 1,
-      created_date: Date.current.strftime("%m/%d/%Y")
-    }
-  end
-
-  def generate_ai_prompt(processed_data)
-    season = processed_data[:season_info][:season]
-    reasoning = processed_data[:season_info][:reasoning]
-    
-    prompt = build_dynamic_prompt(
-      customer_name: processed_data[:customer_name],
-      property_address: processed_data[:property_address],
-      current_season: season,
-      service_notes: processed_data[:service_notes],
-      seasonal_reasoning: reasoning
-    )
-    
-    {
-      full_prompt: prompt,
-      preview: prompt[0..200] + "..."
-    }
-  end
-
-  def build_dynamic_prompt(customer_name:, property_address:, current_season:, service_notes:, seasonal_reasoning:)
-    address_str = "#{property_address[:street]}, #{property_address[:city]}, #{property_address[:province]}"
-    
-    <<~PROMPT
-      Write the actual customer update email content for #{customer_name} who hosts a hive at #{address_str}.
-
-      Current season: #{current_season}
-      Current date: #{Date.current.strftime("%m/%d/%Y")}
-      Seasonal context: #{seasonal_reasoning}
-      Recent beekeeper service notes: "#{service_notes}"
-
-      IMPORTANT SEASONAL LOGIC: 
-      Focus on activities appropriate for #{current_season} in #{property_address[:province]}. 
-      Use only seasonally appropriate details from the service notes. 
-      Include specific seasonal bee behavior and hive management activities.
-      Mention our treatment-free approach with mite-resistant genetics. 
-      Keep it educational about bee behavior and hive health. 
-      Write only the email body content - no subject line, greeting or regards.
-    PROMPT
-  end
-
-  def send_customer_email(to:, subject:, content:)
-    # Use the new EmailService instead of mock
-    result = EmailService.send_customer_email(
-      to: to,
-      subject: subject, 
-      content: content,
-      from_name: "Host a Hive Beekeeping Services"
-    )
-    
-    if result[:success]
-      puts "✅ Email sent successfully!"
-      puts "   Provider: #{result[:provider]}"
-      puts "   Email ID: #{result[:email_id]}" 
-    else
-      puts "❌ Email failed: #{result[:error]}"
-    end
-    
-    result
-  end
-
-  def extract_real_job_info(visit_data)
-    job_data = visit_data['job'] || {}
+  def extract_enhanced_visit_data(jobber_data, jobber_account)
+    job_data = jobber_data['job'] || {}
+    client_data = job_data['client'] || {}
     property_data = job_data['property'] || {}
     address_data = property_data['address'] || {}
+    notes_data = jobber_data['notes']&.dig('nodes') || []
     line_items = job_data['lineItems']&.dig('nodes') || []
     
-    {
-      job_number: job_data['jobNumber'] || "SF-#{rand(1000..9999)}",
-      property_street: address_data['street'] || "123 Service Lane",
-      property_city: address_data['city'] || "Austin",
-      property_state: address_data['province'] || "TX",
-      line_items: line_items.map { |item| item['name'] }.join(", ")
-    }
-  end
-
-  def extract_real_customer_info(visit_data)
-    job_data = visit_data['job'] || {}
-    client_data = job_data['client'] || {}
-    emails = client_data['emails'] || []
-    
+    # Extract customer info
     company_name = client_data['companyName']
     first_name = client_data['firstName'] || "Customer"
     last_name = client_data['lastName'] || ""
     
-    primary_email = emails.find { |email| email['primary'] }&.dig('address') || 
-                    emails.first&.dig('address') || 
-                    "customer@example.com"
+    customer_name = if company_name.present?
+                     company_name
+                   else
+                     "#{first_name} #{last_name}".strip
+                   end
     
-    display_name = if company_name.present?
-      company_name
-    else
-      "#{first_name} #{last_name}".strip
+    # Extract email
+    emails = client_data['emails'] || []
+    customer_email = emails.find { |email| email['primary'] }&.dig('address') || 
+                     emails.first&.dig('address') || 
+                     "customer@example.com"
+    
+    # Extract location
+    customer_location = "#{address_data['city']}, #{address_data['province']}" if address_data['city']
+    customer_location ||= "Unknown location"
+    
+    # Extract and combine notes
+    visit_notes = []
+    
+    # Add visit notes
+    if notes_data.any?
+      note_content = notes_data.map { |note| note['message'] }.join('. ')
+      visit_notes << note_content if note_content.present?
     end
     
+    # Add line items as context
+    if line_items.any?
+      line_item_content = line_items.map { |item| "#{item['name']}: #{item['description']}" }.join('. ')
+      visit_notes << line_item_content if line_item_content.present?
+    end
+    
+    combined_notes = visit_notes.join('. ').strip
+    combined_notes = "Service visit completed successfully" if combined_notes.blank?
+    
     {
-      display_name: display_name,
-      primary_email: primary_email
+      job_id: job_data['jobNumber'] || "SF-#{rand(1000..9999)}",
+      customer_name: customer_name,
+      customer_email: customer_email,
+      customer_location: customer_location,
+      visit_notes: combined_notes,
+      visit_date: Date.current
     }
   end
 
-  def extract_real_notes(visit_data)
-    notes = visit_data['notes']&.dig('nodes') || []
+  def generate_enhanced_fallback_data(jobber_account)
+    # Enhanced fallback that adapts to business type
+    business_profile = jobber_account.service_provider_profile
+    service_type = business_profile&.main_service_type || 'General Service'
     
-    recent_notes = notes.map do |note|
-      "#{note['message']} (#{Date.parse(note['createdAt']).strftime('%m/%d/%Y')})"
-    end.join('\n\n')
+    # Generate service-appropriate test notes
+    test_notes = case service_type.downcase
+                when /beekeeping/
+                  "Completed quarterly hive inspection. Found queen present and laying well. Honey supers are full and ready for harvest. Noticed some varroa mites - recommended treatment in 2 weeks."
+                when /hvac/
+                  "Completed HVAC system maintenance. Cleaned filters, checked refrigerant levels, tested thermostat calibration. System running efficiently. Recommended next service in 6 months."
+                when /plumbing/
+                  "Completed plumbing inspection and repairs. Fixed leak in main line, checked water pressure, tested all fixtures. Everything functioning properly."
+                when /electrical/
+                  "Completed electrical safety inspection. Tested all circuits, checked panel connections, verified GFCI outlets. All systems operating safely."
+                else
+                  "Completed service visit. All work performed according to specifications. System checked and functioning properly."
+                end
     
     {
-      formatted_notes: recent_notes.present? ? recent_notes : "Service completed successfully.",
-      note_count: notes.length,
-      created_date: Date.current.strftime("%m/%d/%Y")
+      job_id: "SF-#{rand(1000..9999)}",
+      customer_name: "Test Customer",
+      customer_email: "solarharvey79@gmail.com", # Your test email
+      customer_location: "Minneapolis, MN",
+      visit_notes: test_notes,
+      visit_date: Date.current
     }
   end
 
-  def get_access_token_for_account
-    # First try environment variable (for production)
-    env_token = ENV['JOBBER_ACCESS_TOKEN']
-    if env_token.present?
-      puts "✅ Using environment token (manual mode)"
-      return env_token
+  def generate_and_send_enhanced_email(processed_data, jobber_account)
+    # Get business profile
+    business_profile = jobber_account.service_provider_profile
+    
+    unless business_profile
+      return { 
+        success: false, 
+        error: 'No business profile found - please complete signup first',
+        email_sent: false
+      }
     end
     
-    # Use database with auto-refresh
-    account = JobberAccount.first
+    puts "✅ Using business profile: #{business_profile.company_name}"
+    puts "✅ Service type: #{business_profile.main_service_type}"
     
-    if account
-      puts "🔍 Found JobberAccount, checking token validity..."
-      token = account.get_valid_access_token
+    # Prepare visit data for new CustomerEmailService
+    visit_data = {
+      business_profile: business_profile,
+      customer_name: processed_data[:customer_name],
+      customer_email: processed_data[:customer_email],
+      customer_location: processed_data[:customer_location],
+      visit_notes: processed_data[:visit_notes],
+      visit_date: processed_data[:visit_date]
+    }
+    
+    # Generate AI email using new service
+    email_service = CustomerEmailService.new
+    generation_result = email_service.generate_visit_follow_up(visit_data)
+    
+    unless generation_result[:success]
+      return { 
+        success: false, 
+        error: "Email generation failed: #{generation_result[:error]}",
+        email_sent: false
+      }
+    end
+    
+    puts "✅ AI email generated successfully!"
+    puts "Subject: #{generation_result[:subject]}"
+    
+    # Send email using existing EmailService
+    send_result = EmailService.send_customer_email(
+      to: processed_data[:customer_email],
+      subject: generation_result[:subject],
+      content: generation_result[:email_content],
+      from_name: business_profile.company_name
+    )
+    
+    if send_result[:success]
+      puts "✅ Email sent successfully!"
+      puts "   Provider: #{send_result[:provider]}"
+      puts "   Email ID: #{send_result[:email_id]}"
       
-      if token
-        puts "✅ Got valid access token (auto-refreshed if needed)"
-        return token
-      else
-        puts "❌ Token refresh failed - account needs re-authorization"
-        return nil
-      end
+      {
+        success: true,
+        email_sent: true,
+        subject: generation_result[:subject],
+        email_content: generation_result[:email_content],
+        email_id: send_result[:email_id],
+        customer_email: processed_data[:customer_email]
+      }
     else
-      puts "❌ No JobberAccount found"
-      return nil
+      puts "❌ Email sending failed: #{send_result[:error]}"
+      
+      {
+        success: true, # AI generation succeeded
+        email_sent: false,
+        subject: generation_result[:subject],
+        email_content: generation_result[:email_content],
+        send_error: send_result[:error]
+      }
     end
+  end
+
+  # Keep your existing helper methods for backward compatibility
+  def get_access_token_for_account
+    account = JobberAccount.first
+    account&.get_valid_access_token
   end
 end
