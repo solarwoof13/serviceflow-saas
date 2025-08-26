@@ -10,9 +10,26 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_08_19_015605) do
+ActiveRecord::Schema[7.2].define(version: 2025_08_25_233905) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
+
+  create_table "email_deduplication_logs", force: :cascade do |t|
+    t.string "visit_id", null: false
+    t.string "job_id"
+    t.string "customer_email", null: false
+    t.string "webhook_topic"
+    t.json "webhook_data"
+    t.string "email_status"
+    t.string "block_reason"
+    t.datetime "email_sent_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_email_deduplication_logs_on_created_at"
+    t.index ["job_id"], name: "index_email_deduplication_logs_on_job_id"
+    t.index ["visit_id", "customer_email"], name: "idx_dedup_visit_customer"
+    t.index ["visit_id"], name: "index_email_deduplication_logs_on_visit_id"
+  end
 
   create_table "jobber_accounts", force: :cascade do |t|
     t.string "jobber_id"

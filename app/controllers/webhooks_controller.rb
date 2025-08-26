@@ -1,9 +1,14 @@
-# Replace your entire webhooks_controller.rb with this complete version
+# app/controllers/webhooks_controller.rb
 class WebhooksController < ApplicationController
   def jobber
     puts "=== SERVICEFLOW WEBHOOK RECEIVED ==="
     
     webhook_data = params.except(:controller, :action, :webhook)
+    webhook_topic = webhook_data.dig("data", "webHookEvent", "topic")
+    visit_id = webhook_data.dig("data", "webHookEvent", "itemId")
+
+    puts "Webhook topic: #{webhook_topic}"
+    puts "Visit ID: #{visit_id}"
     puts "Webhook data: #{webhook_data}"
     
     # Get the JobberAccount for this webhook with enhanced identification
@@ -17,6 +22,26 @@ class WebhooksController < ApplicationController
     
     # Process with enhanced business intelligence
     processed_data = process_jobber_data_enhanced(webhook_data, jobber_account)
+
+    # 🛡️ SAFETY CHECK: Should we send an email for this webhook?
+    safety_check = EmailSafetyService.safe_to_send_email?(
+      visit_id: visit_id,
+      customer_email: processed_data[:customer_email],
+      webhook_data: webhook_data
+    )
+
+    unless safety_check[:safe]
+      puts "🚫 Email blocked: #{safety_check[:reason]}"
+      render json: { 
+        status: 'blocked',
+        reason: safety_check[:reason],
+        visit_id: visit_id,
+        webhook_topic: webhook_topic
+      }
+      return
+    end
+
+    puts "✅ Safety check passed: #{safety_check[:reason]}"
     
     # Generate AI email using new CustomerEmailService
     email_result = generate_and_send_enhanced_email(processed_data, jobber_account)
@@ -226,19 +251,12 @@ class WebhooksController < ApplicationController
     business_profile = jobber_account.service_provider_profile
     service_type = business_profile&.main_service_type || 'General Service'
     
-    # Generate service-appropriate test notes
-    test_notes = case service_type.downcase
-                when /beekeeping/
-                  "Completed quarterly hive inspection. Found queen present and laying well. Honey supers are full and ready for harvest. Noticed some varroa mites - recommended treatment in 2 weeks."
-                when /hvac/
-                  "Completed HVAC system maintenance. Cleaned filters, checked refrigerant levels, tested thermostat calibration. System running efficiently. Recommended next service in 6 months."
-                when /plumbing/
-                  "Completed plumbing inspection and repairs. Fixed leak in main line, checked water pressure, tested all fixtures. Everything functioning properly."
-                when /electrical/
-                  "Completed electrical safety inspection. Tested all circuits, checked panel connections, verified GFCI outlets. All systems operating safely."
-                else
-                  "Completed service visit. All work performed according to specifications. System checked and functioning properly."
-                end
+    # Generate service-appropriate test notes from business profile
+    test_notes = if business_profile&.service_details.present?
+                    "Completed service visit. #{business_profile.service_details}. All work performed according to specifications. System functioning properly."
+                  else
+                    "Completed service visit. All work performed according to specifications. System checked and functioning properly."
+                  end
     
     {
       job_id: "SF-#{rand(1000..9999)}",

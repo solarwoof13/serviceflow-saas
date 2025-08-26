@@ -51,6 +51,50 @@ class CustomerEmailService
     end
   end
   
+  # ADD: Missing method that webhooks_controller.rb is trying to call
+  def generate_and_send_enhanced_email(processed_data)
+    Rails.logger.info "🔄 CustomerEmailService: Generating enhanced email..."
+    
+    # Convert processed_data to visit_data format
+    visit_data = {
+      business_profile: nil, # You may want to load this from a config or database
+      customer_name: processed_data[:customer_name],
+      customer_location: "#{processed_data[:property_address][:city]}, #{processed_data[:property_address][:province]}",
+      visit_notes: processed_data[:service_notes],
+      visit_date: Date.current,
+      customer_email: processed_data[:customer_email]
+    }
+    
+    # Generate the email
+    email_result = generate_visit_follow_up(visit_data)
+    
+    if email_result[:success]
+      # Send the email using EmailService
+      send_result = EmailService.send_customer_email(
+        to: processed_data[:customer_email],
+        subject: email_result[:subject],
+        content: email_result[:email_content],
+        from_name: "Host a Hive Beekeeping Services"
+      )
+      
+      Rails.logger.info email_result[:success] ? "✅ Enhanced email sent!" : "❌ Enhanced email failed: #{send_result[:error]}"
+      
+      return {
+        email_generated: email_result[:success],
+        email_sent: send_result[:success],
+        email_content: email_result[:email_content],
+        send_result: send_result
+      }
+    else
+      Rails.logger.error "❌ Email generation failed: #{email_result[:error]}"
+      return {
+        email_generated: false,
+        email_sent: false,
+        error: email_result[:error]
+      }
+    end
+  end
+  
   private
   
   def build_visit_email_prompt(business_profile:, customer_name:, customer_location:, visit_notes:, service_type:, visit_date:)
@@ -145,7 +189,7 @@ class CustomerEmailService
             content: prompt
           }
         ],
-        max_tokens: 1000,
+        max_tokens: 2000,
         temperature: @temperature
       }.to_json
     })
@@ -163,17 +207,12 @@ class CustomerEmailService
   end
   
   def extract_subject_line(email_content)
-    # Look for subject line at start
+    # Look for subject line at start and REMOVE it from content
     if email_content.match(/^Subject:\s*(.+)$/i)
-      return $1.strip
-    end
-    
-    # Look for first line if it looks like a subject
-    lines = email_content.split("\n")
-    first_line = lines.first&.strip
-    
-    if first_line && first_line.length < 80 && !first_line.include?(',') && !first_line.include?('Dear')
-      return first_line
+      subject = $1.strip
+      # Remove the subject line from the email content
+      email_content.gsub!(/^Subject:\s*.+\n\n?/i, '')
+      return subject
     end
     
     # Default fallback
@@ -181,11 +220,17 @@ class CustomerEmailService
   end
   
   def generate_fallback_email(visit_data)
-    business_name = visit_data[:business_profile]&.company_name || 'Our Team'
+    business_profile = visit_data[:business_profile]
     customer_name = visit_data[:customer_name]
-    service_type = visit_data[:business_profile]&.main_service_type || 'service'
-    visit_date = visit_data[:visit_date]&.strftime('%B %d, %Y') || Date.current.strftime('%B %d, %Y')
     visit_notes = visit_data[:visit_notes]
+    visit_date = visit_data[:visit_date]&.strftime('%B %d, %Y') || Date.current.strftime('%B %d, %Y')
+    
+    # Extract business info with fallbacks
+    business_name = business_profile&.company_name || 'Our Team'
+    service_type = business_profile&.main_service_type || 'service'
+    
+    # Build signature with cascading fallbacks
+    signature = build_signature(business_profile)
     
     "Subject: #{service_type} Service Completed - #{visit_date}\n\n" +
     "Dear #{customer_name},\n\n" +
@@ -194,6 +239,69 @@ class CustomerEmailService
     "Work completed:\n#{visit_notes}\n\n" +
     "If you have any questions about the work performed or need additional service, " +
     "please don't hesitate to contact us.\n\n" +
-    "Best regards,\n#{business_name}"
+    "#{signature}"
+  end
+
+  def build_signature(business_profile)
+    return "Best regards,\nOur Team" unless business_profile
+    
+    signature_parts = ["Best regards,"]
+    
+    # Try to extract owner name from company description
+    owner_name = extract_owner_name(business_profile)
+    if owner_name
+      signature_parts << owner_name
+      signature_parts << "#{business_profile.company_name}"
+    else
+      signature_parts << "#{business_profile.company_name} Team"
+    end
+    
+    # Add contact info if available
+    contact_info = extract_contact_info(business_profile)
+    signature_parts << contact_info if contact_info.present?
+    
+    signature_parts.join("\n")
+  end
+
+  def extract_owner_name(business_profile)
+    # Try multiple extraction methods
+    desc = business_profile.company_description || ""
+    
+    # Look for owner mentions in description
+    if match = desc.match(/(?:owner|founded by|started by)[:\s]+([A-Z][a-z]+\s+[A-Z][a-z]+)/i)
+      return match[1]
+    end
+    
+    # Look for "I am" or "My name is" patterns
+    if match = desc.match(/(?:I am|My name is)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i)
+      return match[1]
+    end
+    
+    # Extract from company name if it contains a person's name
+    company = business_profile.company_name || ""
+    if company.match?(/^[A-Z][a-z]+\s+[A-Z][a-z]+/)
+      return company.split(/\s+/).first(2).join(' ')
+    end
+    
+    nil # No owner name found
+  end
+
+  def extract_contact_info(business_profile)
+    contact_parts = []
+    
+    # Add certifications/licenses as contact context
+    if business_profile.certifications_licenses.present?
+      contact_parts << business_profile.certifications_licenses
+    end
+    
+    # Add service area info
+    if business_profile.local_expertise.present?
+      expertise = business_profile.local_expertise
+      if expertise.length < 100 # Only if it's brief
+        contact_parts << "Serving: #{expertise}"
+      end
+    end
+    
+    contact_parts.join("\n")
   end
 end
