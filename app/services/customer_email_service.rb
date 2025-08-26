@@ -138,30 +138,15 @@ class CustomerEmailService
     # Service-Specific Intelligence Request
     prompt += "SPECIFIC REQUESTS:\n"
     case service_type.downcase
-    when /beekeeping/
-      prompt += "- Consider seasonal bee activity for #{month} in #{customer_location}\n"
-      prompt += "- Mention relevant nectar sources or hive conditions for this time of year\n"
-      prompt += "- Include regional beekeeping considerations\n"
-    when /hvac/
-      prompt += "- Consider seasonal HVAC needs for #{month} in #{customer_location}\n"
-      prompt += "- Mention relevant heating/cooling advice for this time of year\n"
-      prompt += "- Include energy efficiency tips for the region\n"
-    when /plumbing/
-      prompt += "- Consider seasonal plumbing concerns for #{month} in #{customer_location}\n"
-      prompt += "- Mention freeze protection or seasonal maintenance for this time of year\n"
-      prompt += "- Include regional plumbing considerations\n"
-    when /landscaping/, /lawn/
-      prompt += "- Consider seasonal landscaping needs for #{month} in #{customer_location}\n"
-      prompt += "- Mention relevant plant care or lawn maintenance for this time of year\n"
-      prompt += "- Include regional growing considerations\n"
-    when /electrical/
-      prompt += "- Consider seasonal electrical safety for #{month} in #{customer_location}\n"
-      prompt += "- Mention relevant electrical considerations for this time of year\n"
-      prompt += "- Include regional electrical concerns\n"
-    else
-      prompt += "- Consider seasonal maintenance needs for #{month} in #{customer_location}\n"
-      prompt += "- Mention relevant service considerations for this time of year\n"
-      prompt += "- Include regional service factors\n"
+    when /.*/  # This matches ANY service type
+      if business_profile&.unique_selling_points.present?
+        prompt += "- Use business approach: #{business_profile.unique_selling_points}\n"
+      end
+      if business_profile&.local_expertise.present?
+        prompt += "- Include regional knowledge: #{business_profile.local_expertise}\n"
+      end
+      prompt += "- Consider seasonal considerations for #{service_type} in #{month} in #{customer_location}\n"
+      prompt += "- Use your knowledge of #{service_type.downcase} to provide relevant industry advice\n"
     end
     
     prompt += "\nGenerate a complete customer follow-up email that demonstrates expert #{service_type.downcase} knowledge."
@@ -182,7 +167,7 @@ class CustomerEmailService
         messages: [
           {
             role: 'system',
-            content: 'You are an expert contractor writing professional follow-up emails. Use your knowledge of seasons, weather, and regional conditions to provide valuable, location-specific advice. Always include a clear subject line at the start.'
+            content: 'You are an expert contractor or service provider writing professional follow-up emails. Use your knowledge of seasons, weather, and regional conditions to provide valuable, location-specific advice that is relavent to the type of service provided. Always include a clear subject line at the start.'
           },
           {
             role: 'user',
