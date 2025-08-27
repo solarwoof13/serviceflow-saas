@@ -98,28 +98,28 @@ class JobberService
   end
 
   def update_account_tokens(account_params, tokens)
-    # Find existing account or create new one
-    account = JobberAccount.find_by(jobber_id: account_params[:jobber_id])
+    # Find existing account by EITHER jobber_id OR account_id
+    account = JobberAccount.find_by(jobber_id: account_params[:jobber_id]) || 
+              JobberAccount.find_by(account_id: account_params[:jobber_id])
     
     if account
-      # Update existing account
       Rails.logger.info "🔄 Updating existing account: #{account_params[:jobber_id]}"
-      account.name = account_params[:name] if account_params[:name]
     else
-      # Create new account
       Rails.logger.info "➕ Creating new account: #{account_params[:jobber_id]}"
       account = JobberAccount.new(
         jobber_id: account_params[:jobber_id],
-        account_id: account_params[:jobber_id], # Use jobber_id as account_id
-        name: account_params[:name]
+        account_id: account_params[:jobber_id]
       )
     end
     
-    # Update token information using CORRECT column names
-    account.jobber_access_token = tokens[:access_token]
-    account.token_expires_at = tokens[:expires_at]
-    account.refresh_token = tokens[:refresh_token]
-    account.needs_reauthorization = false
+    # Update all fields regardless of whether account is new or existing
+    account.assign_attributes(
+      name: account_params[:name],
+      jobber_access_token: tokens[:access_token],
+      token_expires_at: tokens[:expires_at],
+      refresh_token: tokens[:refresh_token],
+      needs_reauthorization: false
+    )
     
     account.save!
     
