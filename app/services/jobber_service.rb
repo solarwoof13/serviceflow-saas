@@ -107,7 +107,8 @@ class JobberService
       Rails.logger.info "🔄 Found existing account - ID: #{account.id}, jobber_id: #{account.jobber_id}, account_id: #{account.account_id}"
       Rails.logger.info "🔄 Updating existing account: #{account_params[:jobber_id]}"
       
-      # Preserve existing required fields
+      # Fix missing jobber_id field
+      account.jobber_id = account_params[:jobber_id] if account.jobber_id.blank?
       account.name = account_params[:name] if account_params[:name].present?
     else
       Rails.logger.info "➕ Creating new account: #{account_params[:jobber_id]}"
@@ -118,15 +119,12 @@ class JobberService
       )
     end
     
-    Rails.logger.info "📝 Before token update - jobber_id: #{account.jobber_id}, account_id: #{account.account_id}"
-    
-    # Update only token-related fields
+    # Update token-related fields
     account.jobber_access_token = tokens[:access_token]
     account.token_expires_at = tokens[:expires_at]
     account.refresh_token = tokens[:refresh_token]
     account.needs_reauthorization = false
     
-    Rails.logger.info "💾 About to save account - jobber_id: #{account.jobber_id}, account_id: #{account.account_id}"
     account.save!
     
     Rails.logger.info "✅ Updated JobberAccount: #{account.name} (ID: #{account.jobber_id})"
