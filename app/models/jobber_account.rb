@@ -7,8 +7,10 @@ class JobberAccount < ApplicationRecord
   # Check if the access token is still valid
   def valid_jobber_access_token?
     return false if jobber_access_token.blank?
-    return false if token_expires_at.blank?
     return false if needs_reauthorization?
+    
+    # If token_expires_at is blank, assume it's still valid for a short time
+    return true if token_expires_at.blank?
     
     # Token is valid if it doesn't expire for at least 5 minutes
     token_expires_at > 5.minutes.from_now

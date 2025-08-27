@@ -51,7 +51,7 @@ class JobberService
   end
 
   def create_oauth2_access_token(code)
-    return {} if code.blank?
+  return {} if code.blank?
 
     redirect_uri = "#{ENV['APP_BASE_URL'] || 'https://serviceflow-saas.onrender.com'}/request_access_token"
 
@@ -64,11 +64,12 @@ class JobberService
       result = {
         access_token: token.token,
         refresh_token: token.refresh_token,
-        expires_at: token.expires_at ? Time.at(token.expires_at) : nil,
+        expires_at: token.expires_at ? Time.at(token.expires_at) : 1.hour.from_now, # Default to 1 hour if not provided
         expires_in: token.expires_in
       }
       
       Rails.logger.info "✅ Successfully exchanged code for access token"
+      Rails.logger.info "Token expires at: #{result[:expires_at]}"
       result
       
     rescue OAuth2::Error => e
