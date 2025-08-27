@@ -104,22 +104,22 @@ class JobberService
     
     if account
       Rails.logger.info "🔄 Updating existing account: #{account_params[:jobber_id]}"
+      # Only update the name if provided
+      account.name = account_params[:name] if account_params[:name].present?
     else
       Rails.logger.info "➕ Creating new account: #{account_params[:jobber_id]}"
       account = JobberAccount.new(
         jobber_id: account_params[:jobber_id],
-        account_id: account_params[:jobber_id]
+        account_id: account_params[:jobber_id],
+        name: account_params[:name]
       )
     end
     
-    # Update all fields regardless of whether account is new or existing
-    account.assign_attributes(
-      name: account_params[:name],
-      jobber_access_token: tokens[:access_token],
-      token_expires_at: tokens[:expires_at],
-      refresh_token: tokens[:refresh_token],
-      needs_reauthorization: false
-    )
+    # Update only token-related fields
+    account.jobber_access_token = tokens[:access_token]
+    account.token_expires_at = tokens[:expires_at]
+    account.refresh_token = tokens[:refresh_token]
+    account.needs_reauthorization = false
     
     account.save!
     
