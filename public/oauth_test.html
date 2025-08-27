@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ServiceFlow - OAuth Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 50px auto; 
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .status { 
+            padding: 15px; 
+            margin: 15px 0; 
+            border-radius: 5px; 
+            font-weight: bold;
+        }
+        
+        .success { 
+            background-color: #d4edda; 
+            border: 1px solid #c3e6cb; 
+            color: #155724; 
+        }
+        
+        .error { 
+            background-color: #f8d7da; 
+            border: 1px solid #f5c6cb; 
+            color: #721c24; 
+        }
+        
+        .info { 
+            background-color: #d1ecf1; 
+            border: 1px solid #bee5eb; 
+            color: #0c5460; 
+        }
+        
+        .warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        
+        button { 
+            padding: 12px 24px; 
+            margin: 10px 5px; 
+            font-size: 16px; 
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+        
+        .connect-btn { 
+            background-color: #007bff; 
+            color: white; 
+        }
+        
+        .connect-btn:hover { 
+            background-color: #0056b3; 
+        }
+        
+        .logout-btn { 
+            background-color: #dc3545; 
+            color: white; 
+        }
+        
+        .logout-btn:hover { 
+            background-color: #c82333; 
+        }
+        
+        .secondary-btn {
+            background-color: #6c757d;
+            color: white;
+        }
+        
+        .secondary-btn:hover {
+            background-color: #545b62;
+        }
+        
+        .account-info {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 ServiceFlow - Jobber OAuth Test</h1>
+        <p>Test your Jobber OAuth integration for ServiceFlow SaaS</p>
+        
+        <div id="status"></div>
+        
+        <div id="controls">
+            <button id="connectBtn" class="connect-btn" onclick="connectToJobber()">
+                <span id="connectText">Connect to Jobber</span>
+                <span id="connectLoading" class="loading hidden"></span>
+            </button>
+            
+            <button id="logoutBtn" class="logout-btn hidden" onclick="logout()">
+                Logout
+            </button>
+            
+            <button class="secondary-btn" onclick="checkStatus()">
+                🔄 Refresh Status
+            </button>
+            
+            <button class="secondary-btn" onclick="testWebhook()">
+                🧪 Test Webhook
+            </button>
+        </div>
+        
+        <div id="accountInfo"></div>
+        
+        <div id="debugInfo" style="margin-top: 30px;">
+            <h3>🔧 Debug Information</h3>
+            <div id="debugDetails"></div>
+        </div>
+    </div>
+
+    <script>
+        // Check authentication status on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 ServiceFlow OAuth Test loaded');
+            checkStatus();
+        });
+        
+        async function checkStatus() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = '<div class="info">⏳ Checking authentication status...</div>';
+            
+            try {
+                const response = await fetch('/auth/status');
+                const data = await response.json();
+                
+                console.log('Auth Status:', data);
+                updateDebugInfo('Status Check', data);
+                
+                const connectBtn = document.getElementById('connectBtn');
+                const logoutBtn = document.getElementById('logoutBtn');
+                const accountInfo = document.getElementById('accountInfo');
+                
+                if (data.authenticated) {
+                    statusDiv.innerHTML = `
+                        <div class="success">
+                            ✅ Connected to Jobber successfully!
+                        </div>
+                        ${data.needs_reauthorization ? '<div class="warning">⚠️ Token may need refresh</div>' : ''}
+                    `;
+                    
+                    accountInfo.innerHTML = `
+                        <div class="account-info">
+                            <h3>📋 Account Information</h3>
+                            <p><strong>Name:</strong> ${data.account_name}</p>
+                            <p><strong>Account ID:</strong> ${data.account_id}</p>
+                            <p><strong>Auth Status:</strong> <span style="color: ${getStatusColor(data.auth_status)}">${data.auth_status}</span></p>
+                            <p><strong>Token Expires In:</strong> ${data.token_expires_in || 'Unknown'}</p>
+                            <p><strong>Setup Complete:</strong> ${data.setup_complete ? '✅' : '❌'}</p>
+                        </div>
+                    `;
+                    
+                    connectBtn.classList.add('hidden');
+                    logoutBtn.classList.remove('hidden');
+                } else {
+                    statusDiv.innerHTML = `
+                        <div class="info">
+                            ℹ️ Not connected to Jobber
+                            <br><small>Click "Connect to Jobber" to start OAuth flow</small>
+                        </div>
+                    `;
+                    accountInfo.innerHTML = '';
+                    connectBtn.classList.remove('hidden');
+                    logoutBtn.classList.add('hidden');
+                }
+                
+            } catch (error) {
+                console.error('Status check failed:', error);
+                statusDiv.innerHTML = `
+                    <div class="error">
+                        ❌ Error checking status: ${error.message}
+                        <br><small>Make sure your Rails server is running on port 4000</small>
+                    </div>
+                `;
+                updateDebugInfo('Status Check Error', { error: error.message });
+            }
+        }
+        
+        function getStatusColor(status) {
+            const colors = {
+                'active': '#28a745',
+                'expired': '#ffc107',
+                'needs_reauth': '#dc3545',
+                'no_token': '#6c757d'
+            };
+            return colors[status] || '#6c757d';
+        }
+        
+        function connectToJobber() {
+            const connectBtn = document.getElementById('connectBtn');
+            const connectText = document.getElementById('connectText');
+            const connectLoading = document.getElementById('connectLoading');
+            
+            // Show loading state
+            connectText.classList.add('hidden');
+            connectLoading.classList.remove('hidden');
+            connectBtn.disabled = true;
+            
+            console.log('🔗 Starting OAuth flow...');
+            updateDebugInfo('OAuth Flow', { action: 'Starting OAuth flow', timestamp: new Date().toISOString() });
+            
+            // Redirect to OAuth flow
+            window.location.href = '/auth/jobber';
+        }
+        
+        async function logout() {
+            try {
+                const response = await fetch('/logout', { method: 'GET' });
+                const data = await response.json();
+                
+                console.log('Logout response:', data);
+                updateDebugInfo('Logout', data);
+                
+                if (response.ok) {
+                    checkStatus(); // Refresh status
+                } else {
+                    throw new Error('Logout failed');
+                }
+            } catch (error) {
+                console.error('Logout failed:', error);
+                alert('Logout failed. Please try again.');
+                updateDebugInfo('Logout Error', { error: error.message });
+            }
+        }
+        
+        async function testWebhook() {
+            const statusDiv = document.getElementById('status');
+            
+            try {
+                statusDiv.innerHTML = '<div class="info">🧪 Testing webhook endpoint...</div>';
+                
+                const response = await fetch('/webhooks/jobber', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        test: true,
+                        message: 'Test webhook from OAuth test page'
+                    })
+                });
+                
+                const text = await response.text();
+                console.log('Webhook test response:', text);
+                
+                statusDiv.innerHTML = `
+                    <div class="success">
+                        ✅ Webhook endpoint responded: ${response.status}
+                    </div>
+                `;
+                
+                updateDebugInfo('Webhook Test', { 
+                    status: response.status, 
+                    response: text,
+                    timestamp: new Date().toISOString()
+                });
+                
+            } catch (error) {
+                console.error('Webhook test failed:', error);
+                statusDiv.innerHTML = `
+                    <div class="error">
+                        ❌ Webhook test failed: ${error.message}
+                    </div>
+                `;
+                updateDebugInfo('Webhook Test Error', { error: error.message });
+            }
+        }
+        
+        function updateDebugInfo(action, data) {
+            const debugDetails = document.getElementById('debugDetails');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            const debugEntry = document.createElement('div');
+            debugEntry.style.marginBottom = '10px';
+            debugEntry.style.padding = '10px';
+            debugEntry.style.backgroundColor = '#f8f9fa';
+            debugEntry.style.borderLeft = '3px solid #007bff';
+            debugEntry.style.fontSize = '14px';
+            
+            debugEntry.innerHTML = `
+                <strong>[${timestamp}] ${action}</strong><br>
+                <pre style="margin: 5px 0; font-size: 12px; color: #6c757d;">${JSON.stringify(data, null, 2)}</pre>
+            `;
+            
+            debugDetails.insertBefore(debugEntry, debugDetails.firstChild);
+            
+            // Keep only last 5 debug entries
+            while (debugDetails.children.length > 5) {
+                debugDetails.removeChild(debugDetails.lastChild);
+            }
+        }
+        
+        // Check for OAuth callback parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('code')) {
+            console.log('🎉 OAuth callback detected with code');
+            updateDebugInfo('OAuth Callback', { 
+                code: urlParams.get('code')?.substring(0, 20) + '...', 
+                state: urlParams.get('state') 
+            });

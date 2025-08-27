@@ -1,6 +1,8 @@
-# app/models/jobber_account.rb
 class JobberAccount < ApplicationRecord
   validates :account_id, presence: true, uniqueness: true
+  validates :jobber_id, presence: true, uniqueness: true
+  
+  has_one :service_provider_profile, dependent: :destroy
   
   # Check if the access token is still valid
   def valid_jobber_access_token?
@@ -15,17 +17,42 @@ class JobberAccount < ApplicationRecord
   # Get a valid access token (refresh if needed)
   def get_valid_access_token
     if valid_jobber_access_token?
-      Rails.logger.info "✅ Using existing valid token"
+      Rails.logger.info "✅ Using existing valid token for #{display_name}"
       jobber_access_token
     else
-      Rails.logger.info "🔄 Token invalid/expired, attempting refresh..."
-      OauthRefreshService.get_valid_token(self)
+      Rails.logger.info "🔄 Token invalid/expired for #{display_name}, attempting refresh..."
+      if refresh_jobber_access_token!
+        jobber_access_token
+      else
+        Rails.logger.error "❌ Token refresh failed for #{display_name}"
+        nil
+      end
     end
   end
   
   # Manual refresh method
   def refresh_jobber_access_token!
-    OauthRefreshService.refresh_access_token(self)
+    service = JobberService.new
+    tokens = service.refresh_access_token(self)
+    
+    if tokens && tokens[:access_token].present?
+      update!(
+        jobber_access_token: tokens[:access_token],
+        token_expires_at: tokens[:expires_at],
+        refresh_token: tokens[:refresh_token],
+        needs_reauthorization: false
+      )
+      Rails.logger.info "✅ Token refreshed successfully for #{display_name}"
+      self # Return self for chaining
+    else
+      Rails.logger.error "❌ Token refresh returned no valid tokens for #{display_name}"
+      mark_needs_reauthorization!
+      false
+    end
+  rescue StandardError => e
+    Rails.logger.error "❌ Token refresh error for #{display_name}: #{e.message}"
+    mark_needs_reauthorization!
+    false
   end
   
   # Mark account as needing user re-authorization
@@ -36,12 +63,55 @@ class JobberAccount < ApplicationRecord
       token_expires_at: nil,
       needs_reauthorization: true
     )
+    Rails.logger.warn "⚠️ Account #{display_name} marked as needing reauthorization"
   end
   
-  has_one :service_provider_profile, dependent: :destroy
+  # Legacy method for backward compatibility (used by old specs)
+  def clear_jobber_credentials!
+    mark_needs_reauthorization!
+  end
   
   # Helper method to get or create profile
   def get_or_create_profile
     service_provider_profile || create_service_provider_profile
+  end
+  
+  # Check if account setup is complete
+  def setup_complete?
+    service_provider_profile&.setup_complete?
+  end
+  
+  # Get display name for logging
+  def display_name
+    name.presence || jobber_id
+  end
+  
+  # Token expiry information
+  def token_expires_in
+    return nil if token_expires_at.blank?
+    
+    seconds = (token_expires_at - Time.current).to_i
+    return nil if seconds <= 0
+    
+    if seconds < 3600 # Less than 1 hour
+      "#{(seconds / 60).round} minutes"
+    elsif seconds < 86400 # Less than 1 day
+      "#{(seconds / 3600).round} hours"
+    else
+      "#{(seconds / 86400).round} days"
+    end
+  end
+  
+  # Status for admin/debugging
+  def auth_status
+    if needs_reauthorization?
+      "needs_reauth"
+    elsif jobber_access_token.blank?
+      "no_token"
+    elsif valid_jobber_access_token?
+      "active"
+    else
+      "expired"
+    end
   end
 end
