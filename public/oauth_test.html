@@ -335,3 +335,15 @@
                 code: urlParams.get('code')?.substring(0, 20) + '...', 
                 state: urlParams.get('state') 
             });
+            // Auto-refresh status after callback
+            setTimeout(checkStatus, 1000);
+        } else if (urlParams.get('error')) {
+            console.error('❌ OAuth error:', urlParams.get('error'));
+            updateDebugInfo('OAuth Error', {
+                error: urlParams.get('error'),
+                error_description: urlParams.get('error_description')
+            });
+        }
+    </script>
+</body>
+</html>
