@@ -1,4 +1,3 @@
-# app/controllers/auth_controller.rb
 # frozen_string_literal: true
 
 class AuthController < ApplicationController
@@ -112,40 +111,23 @@ class AuthController < ApplicationController
       session[:account_id] = account.jobber_id
       Rails.logger.info "✅ OAuth completed successfully for account: #{account.name} (#{account.jobber_id})"
       
-      # Return success response (this could be HTML or JSON depending on your needs)
-      respond_to do |format|
-        format.json do
-          render json: { 
-            success: true,
-            account_name: account.name,
-            account_id: account.jobber_id,
-            message: "Successfully connected to Jobber!",
-            redirect_url: "/"  # Where to redirect user after success
-          }
-        end
-        
-        format.html do
-          # For direct browser access, redirect to success page or show message
-          render html: success_page_html(account), layout: false
-        end
-      end
+      # Return success response
+      render json: { 
+        success: true,
+        account_name: account.name,
+        account_id: account.jobber_id,
+        message: "Successfully connected to Jobber!",
+        redirect_url: "/"
+      }
       
     rescue StandardError => e
       Rails.logger.error "❌ OAuth callback error: #{e.message}"
       Rails.logger.error "Backtrace: #{e.backtrace[0..5].join("\n")}"
       
-      respond_to do |format|
-        format.json do
-          render json: { 
-            error: "OAuth processing failed",
-            message: e.message
-          }, status: 500
-        end
-        
-        format.html do
-          render html: error_page_html(e.message), layout: false
-        end
-      end
+      render json: { 
+        error: "OAuth processing failed",
+        message: e.message
+      }, status: 500
     end
   end
 
@@ -159,10 +141,7 @@ class AuthController < ApplicationController
     reset_session
     Rails.logger.info "📝 User logged out: #{account_name}"
     
-    respond_to do |format|
-      format.json { render json: { success: true, message: "Logged out successfully" } }
-      format.html { redirect_to root_path }
-    end
+    render json: { success: true, message: "Logged out successfully" }
   end
   
   def status
@@ -202,80 +181,6 @@ class AuthController < ApplicationController
     if missing.any?
       raise MissingConfigError, "Missing required environment variables: #{missing.join(', ')}"
     end
-  end
-
-  def success_page_html(account)
-    <<~HTML
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <title>ServiceFlow - Connection Successful</title>
-          <style>
-              body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
-              .success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 20px; border-radius: 5px; margin: 20px 0; }
-              .info { background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; padding: 15px; border-radius: 5px; margin: 15px 0; }
-              button { padding: 10px 20px; margin: 10px; font-size: 16px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 5px; }
-          </style>
-      </head>
-      <body>
-          <h1>🎉 Successfully Connected to Jobber!</h1>
-          
-          <div class="success">
-              <h3>Welcome, #{account.name}!</h3>
-              <p>Your Jobber account is now connected to ServiceFlow.</p>
-          </div>
-          
-          <div class="info">
-              <p><strong>Account ID:</strong> #{account.jobber_id}</p>
-              <p><strong>Connected At:</strong> #{Time.current.strftime('%B %d, %Y at %I:%M %p')}</p>
-          </div>
-          
-          <button onclick="window.close()">Close Window</button>
-          <button onclick="window.location.href='/'">Continue to Dashboard</button>
-          
-          <script>
-              // Auto-close after 3 seconds if opened in popup
-              if (window.opener) {
-                  setTimeout(function() {
-                      window.close();
-                  }, 3000);
-              }
-          </script>
-      </body>
-      </html>
-    HTML
-  end
-
-  def error_page_html(error_message)
-    <<~HTML
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <title>ServiceFlow - Connection Failed</title>
-          <style>
-              body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
-              .error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 20px; border-radius: 5px; margin: 20px 0; }
-              button { padding: 10px 20px; margin: 10px; font-size: 16px; cursor: pointer; background-color: #dc3545; color: white; border: none; border-radius: 5px; }
-              .retry-btn { background-color: #007bff; }
-          </style>
-      </head>
-      <body>
-          <h1>❌ Connection Failed</h1>
-          
-          <div class="error">
-              <h3>Unable to connect to Jobber</h3>
-              <p>#{error_message}</p>
-          </div>
-          
-          <button onclick="window.location.href='/auth/jobber'" class="retry-btn">Try Again</button>
-          <button onclick="window.location.href='/'">Back to Home</button>
-          
-          <script>
-              console.error('OAuth Error:', '#{error_message}');
-          </script>
-      </body>
-      </html>
-    HTML
   end
 
   class MissingConfigError < StandardError; end
