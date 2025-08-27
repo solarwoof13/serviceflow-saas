@@ -98,13 +98,16 @@ class JobberService
   end
 
   def update_account_tokens(account_params, tokens)
-    # Find existing account by EITHER jobber_id OR account_id
+    Rails.logger.info "🔍 Looking for account with jobber_id: #{account_params[:jobber_id]}"
+    
     account = JobberAccount.find_by(jobber_id: account_params[:jobber_id]) || 
               JobberAccount.find_by(account_id: account_params[:jobber_id])
     
     if account
+      Rails.logger.info "🔄 Found existing account - ID: #{account.id}, jobber_id: #{account.jobber_id}, account_id: #{account.account_id}"
       Rails.logger.info "🔄 Updating existing account: #{account_params[:jobber_id]}"
-      # Only update the name if provided
+      
+      # Preserve existing required fields
       account.name = account_params[:name] if account_params[:name].present?
     else
       Rails.logger.info "➕ Creating new account: #{account_params[:jobber_id]}"
@@ -115,12 +118,15 @@ class JobberService
       )
     end
     
+    Rails.logger.info "📝 Before token update - jobber_id: #{account.jobber_id}, account_id: #{account.account_id}"
+    
     # Update only token-related fields
     account.jobber_access_token = tokens[:access_token]
     account.token_expires_at = tokens[:expires_at]
     account.refresh_token = tokens[:refresh_token]
     account.needs_reauthorization = false
     
+    Rails.logger.info "💾 About to save account - jobber_id: #{account.jobber_id}, account_id: #{account.account_id}"
     account.save!
     
     Rails.logger.info "✅ Updated JobberAccount: #{account.name} (ID: #{account.jobber_id})"
