@@ -133,21 +133,14 @@ class WebhooksController < ApplicationController
       begin
         visit_data = JobberApiService.fetch_visit_details(visit_id, account.jobber_access_token)
         
-        if visit_data && visit_data['job'] && visit_data['job']['account']
-          api_account_id = visit_data['job']['account']['id']
+        if visit_data && visit_data['id'] && visit_data['job'] && !visit_data['error']
+          Rails.logger.info "📡 Visit successfully accessed by account: #{account.name}"
+          puts "📡 Visit successfully accessed by account: #{account.name}"
           
-          Rails.logger.info "📡 Visit belongs to account: #{api_account_id}"
-          puts "📡 Visit belongs to account: #{api_account_id}"
-          
-          # Update our database with the correct account ID if needed
-          if account.jobber_id != api_account_id
-            Rails.logger.info "🔄 Updating account ID: #{account.jobber_id} → #{api_account_id}"
-            puts "🔄 Updating account ID: #{account.jobber_id} → #{api_account_id}"
-            account.update(jobber_id: api_account_id)
-          end
-          
+          # This account can access the visit, so it belongs to them
           return account
         end
+        
       rescue => e
         Rails.logger.info "⚠️ Account #{account.name} cannot access visit: #{e.message}"
         puts "⚠️ Account #{account.name} cannot access visit: #{e.message}"
