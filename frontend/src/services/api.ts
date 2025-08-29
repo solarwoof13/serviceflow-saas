@@ -87,11 +87,11 @@ export const serviceProviderAPI = {
   },
 
   // Test email generation
-  generateTestEmail: async (profileData: Partial<ServiceProviderProfile>): Promise<ApiResponse<{ email_content: string }>> => {
-    try {
-      const response = await api.post('/api/v1/test_email', {
-        service_provider_profile: profileData
-      });
+  enhanceText: async (text: string) => {
+    const response = await api.post('/api/v1/enhance_text', {
+      text: text,
+      enhancement_type: 'business_description'
+    });
       return { success: true, data: response.data };
     } catch (error: any) {
       return { 

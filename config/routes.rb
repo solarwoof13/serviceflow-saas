@@ -26,14 +26,11 @@ Rails.application.routes.draw do
   # Service provider profile management API
   namespace :api do
     namespace :v1 do
-      resource :service_provider_profile, only: [:show, :create, :update] do
-        member do
-          get :status
-          post :complete_setup
-        end
-      end
+      resource :service_provider_profile, only: [:show, :create, :update]
+      post :enhance_text, to: 'ai_enhancements#enhance'  # Use existing controller
     end
   end
+
   
   # Health check and monitoring
   get "/heartbeat", to: "application#heartbeat"
