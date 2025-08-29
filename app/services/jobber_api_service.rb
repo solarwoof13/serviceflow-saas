@@ -22,10 +22,6 @@ class JobberApiService
           job {
             id
             jobNumber
-            account {
-              id
-              name
-            }
             client {
               id
               firstName
