@@ -27,7 +27,7 @@ Rails.application.routes.draw do
   namespace :api do
     namespace :v1 do
       resource :service_provider_profile, only: [:show, :create, :update]
-      post :enhance_text, to: 'ai_enhancements#enhance'  # Use existing controller
+      post :enhance_text, to: 'ai_enhancements#enhance'
     end
   end
 

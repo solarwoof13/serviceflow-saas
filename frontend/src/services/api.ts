@@ -86,17 +86,19 @@ export const serviceProviderAPI = {
     return response.data;
   },
 
-  // Test email generation
-  enhanceText: async (text: string) => {
-    const response = await api.post('/api/v1/enhance_text', {
-      text: text,
-      enhancement_type: 'business_description'
-    });
+  // Text enhancement
+  enhanceText: async (text: string): Promise<ApiResponse<{ enhanced_text: string }>> => {
+    try {
+      const response = await api.post('/api/v1/enhance_text', {
+        text: text,
+        enhancement_type: 'business_description',
+        context: {}
+      });
       return { success: true, data: response.data };
     } catch (error: any) {
       return { 
         success: false, 
-        error: error.response?.data?.error || 'Failed to generate test email' 
+        error: error.response?.data?.error || 'Failed to enhance text' 
       };
     }
   }
