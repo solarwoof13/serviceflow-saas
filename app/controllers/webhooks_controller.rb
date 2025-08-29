@@ -94,9 +94,6 @@ class WebhooksController < ApplicationController
       puts "📡 No account ID in webhook, will fetch from API..."
     end
     
-    nil
-  end
-    
     # Fallback: Try to get account ID from visit data via API
     visit_id = webhook_data.dig("data", "webHookEvent", "itemId")
     
