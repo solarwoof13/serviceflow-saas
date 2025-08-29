@@ -1,16 +1,14 @@
 class JobberAccount < ApplicationRecord
-  validates :account_id, presence: true, uniqueness: true
   validates :jobber_id, presence: true, uniqueness: true
+  # Removed jobber_id validation - consolidating on jobber_id only
   
   has_one :service_provider_profile, dependent: :destroy
   
   # Check if the access token is still valid
   def valid_jobber_access_token?
     return false if jobber_access_token.blank?
+    return false if token_expires_at.blank?
     return false if needs_reauthorization?
-    
-    # If token_expires_at is blank, assume it's still valid for a short time
-    return true if token_expires_at.blank?
     
     # Token is valid if it doesn't expire for at least 5 minutes
     token_expires_at > 5.minutes.from_now
@@ -19,14 +17,14 @@ class JobberAccount < ApplicationRecord
   # Get a valid access token (refresh if needed)
   def get_valid_access_token
     if valid_jobber_access_token?
-      Rails.logger.info "✅ Using existing valid token for #{display_name}"
+      Rails.logger.info "Using existing valid token for #{display_name}"
       jobber_access_token
     else
-      Rails.logger.info "🔄 Token invalid/expired for #{display_name}, attempting refresh..."
+      Rails.logger.info "Token invalid/expired for #{display_name}, attempting refresh..."
       if refresh_jobber_access_token!
         jobber_access_token
       else
-        Rails.logger.error "❌ Token refresh failed for #{display_name}"
+        Rails.logger.error "Token refresh failed for #{display_name}"
         nil
       end
     end
@@ -44,15 +42,15 @@ class JobberAccount < ApplicationRecord
         refresh_token: tokens[:refresh_token],
         needs_reauthorization: false
       )
-      Rails.logger.info "✅ Token refreshed successfully for #{display_name}"
+      Rails.logger.info "Token refreshed successfully for #{display_name}"
       self # Return self for chaining
     else
-      Rails.logger.error "❌ Token refresh returned no valid tokens for #{display_name}"
+      Rails.logger.error "Token refresh returned no valid tokens for #{display_name}"
       mark_needs_reauthorization!
       false
     end
   rescue StandardError => e
-    Rails.logger.error "❌ Token refresh error for #{display_name}: #{e.message}"
+    Rails.logger.error "Token refresh error for #{display_name}: #{e.message}"
     mark_needs_reauthorization!
     false
   end
@@ -65,7 +63,7 @@ class JobberAccount < ApplicationRecord
       token_expires_at: nil,
       needs_reauthorization: true
     )
-    Rails.logger.warn "⚠️ Account #{display_name} marked as needing reauthorization"
+    Rails.logger.warn "Account #{display_name} marked as needing reauthorization"
   end
   
   # Legacy method for backward compatibility (used by old specs)

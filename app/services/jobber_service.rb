@@ -98,23 +98,18 @@ class JobberService
   end
 
   def update_account_tokens(account_params, tokens)
-    Rails.logger.info "🔍 Looking for account with jobber_id: #{account_params[:jobber_id]}"
+    Rails.logger.info "Looking for account with jobber_id: #{account_params[:jobber_id]}"
     
-    account = JobberAccount.find_by(jobber_id: account_params[:jobber_id]) || 
-              JobberAccount.find_by(account_id: account_params[:jobber_id])
+    # Simplified lookup - only use jobber_id now
+    account = JobberAccount.find_by(jobber_id: account_params[:jobber_id])
     
     if account
-      Rails.logger.info "🔄 Found existing account - ID: #{account.id}, jobber_id: #{account.jobber_id}, account_id: #{account.account_id}"
-      Rails.logger.info "🔄 Updating existing account: #{account_params[:jobber_id]}"
-      
-      # Fix missing jobber_id field
-      account.jobber_id = account_params[:jobber_id] if account.jobber_id.blank?
+      Rails.logger.info "Updating existing account: #{account_params[:jobber_id]}"
       account.name = account_params[:name] if account_params[:name].present?
     else
-      Rails.logger.info "➕ Creating new account: #{account_params[:jobber_id]}"
+      Rails.logger.info "Creating new account: #{account_params[:jobber_id]}"
       account = JobberAccount.new(
         jobber_id: account_params[:jobber_id],
-        account_id: account_params[:jobber_id],
         name: account_params[:name]
       )
     end
@@ -127,7 +122,7 @@ class JobberService
     
     account.save!
     
-    Rails.logger.info "✅ Updated JobberAccount: #{account.name} (ID: #{account.jobber_id})"
+    Rails.logger.info "Updated JobberAccount: #{account.name} (ID: #{account.jobber_id})"
     account
   end
 

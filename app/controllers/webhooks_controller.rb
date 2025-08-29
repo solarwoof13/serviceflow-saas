@@ -76,19 +76,19 @@ class WebhooksController < ApplicationController
     
     # Try to extract account ID from webhook
     webhook_account_id = webhook_data.dig("data", "account", "id") || 
-                         webhook_data["account_id"]
+                         webhook_data["jobber_id"]
     
     if webhook_account_id
       Rails.logger.info "📡 Webhook contains account ID: #{webhook_account_id}"
-      account = JobberAccount.find_by(account_id: webhook_account_id)
+      account = JobberAccount.find_by(jobber_id: webhook_account_id)
       
       if account
-        Rails.logger.info "✅ Found JobberAccount by webhook account_id: #{account.name}"
-        puts "✅ Found JobberAccount by webhook account_id: #{account.name}"
+        Rails.logger.info "✅ Found JobberAccount by webhook jobber_id: #{account.name}"
+        puts "✅ Found JobberAccount by webhook jobber_id: #{account.name}"
         return account
       else
-        Rails.logger.warn "⚠️ No JobberAccount found for webhook account_id: #{webhook_account_id}"
-        puts "⚠️ No JobberAccount found for webhook account_id: #{webhook_account_id}"
+        Rails.logger.warn "⚠️ No JobberAccount found for webhook jobber_id: #{webhook_account_id}"
+        puts "⚠️ No JobberAccount found for webhook jobber_id: #{webhook_account_id}"
       end
     else
       Rails.logger.info "📡 No account ID in webhook, will fetch from API..."
@@ -141,10 +141,10 @@ class WebhooksController < ApplicationController
           puts "📡 Visit belongs to account: #{api_account_id}"
           
           # Update our database with the correct account ID if needed
-          if account.account_id != api_account_id
-            Rails.logger.info "🔄 Updating account ID: #{account.account_id} → #{api_account_id}"
-            puts "🔄 Updating account ID: #{account.account_id} → #{api_account_id}"
-            account.update(account_id: api_account_id)
+          if account.jobber_id != api_account_id
+            Rails.logger.info "🔄 Updating account ID: #{account.jobber_id} → #{api_account_id}"
+            puts "🔄 Updating account ID: #{account.jobber_id} → #{api_account_id}"
+            account.update(jobber_id: api_account_id)
           end
           
           return account
