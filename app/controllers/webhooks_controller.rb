@@ -74,26 +74,28 @@ class WebhooksController < ApplicationController
   def get_jobber_account_for_webhook(webhook_data)
     Rails.logger.info "🔍 Identifying JobberAccount from webhook..."
     
-    # Try to extract account ID from webhook
-    webhook_account_id = webhook_data.dig("data", "account", "id") || 
-                         webhook_data["jobber_id"]
+    # Extract account ID from correct webhook structure
+    webhook_account_id = webhook_data.dig("data", "webHookEvent", "accountId")
     
-    if webhook_account_id
+    if webhook_account_id.present?
       Rails.logger.info "📡 Webhook contains account ID: #{webhook_account_id}"
       account = JobberAccount.find_by(jobber_id: webhook_account_id)
       
       if account
-        Rails.logger.info "✅ Found JobberAccount by webhook jobber_id: #{account.name}"
-        puts "✅ Found JobberAccount by webhook jobber_id: #{account.name}"
+        Rails.logger.info "✅ Found JobberAccount: #{account.name}"
+        puts "✅ Found JobberAccount: #{account.name}"
         return account
       else
-        Rails.logger.warn "⚠️ No JobberAccount found for webhook jobber_id: #{webhook_account_id}"
-        puts "⚠️ No JobberAccount found for webhook jobber_id: #{webhook_account_id}"
+        Rails.logger.warn "⚠️ No JobberAccount found for jobber_id: #{webhook_account_id}"
+        puts "⚠️ No JobberAccount found for jobber_id: #{webhook_account_id}"
       end
     else
       Rails.logger.info "📡 No account ID in webhook, will fetch from API..."
       puts "📡 No account ID in webhook, will fetch from API..."
     end
+    
+    nil
+  end
     
     # Fallback: Try to get account ID from visit data via API
     visit_id = webhook_data.dig("data", "webHookEvent", "itemId")
