@@ -280,7 +280,7 @@ const AiEnhancementButton: React.FC<AiEnhancementButtonProps> = ({
     setShowModal(true);
     
     try {
-      const response = await fetch('http://localhost:4000/api/v1/ai_enhancement', {
+      const response = await fetch('http://localhost:4000/api/v1/enhance_text', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
