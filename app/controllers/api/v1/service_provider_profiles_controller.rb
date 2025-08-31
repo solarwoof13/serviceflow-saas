@@ -60,10 +60,10 @@ class Api::V1::ServiceProviderProfilesController < ApplicationController
   # Temporary: Create a test account for development
   def find_or_create_test_account
     @jobber_account = JobberAccount.find_or_create_by(
-      jobber_id: 'test_user_signup'
+      jobber_id: 'test_account_123'  # ← Use consistent ID
     ) do |account|
       account.name = 'Test Signup Account'
-      account.jobber_id = 'test_account_123'  # Add this required field
+      # jobber_id is already set by find_or_create_by
     end
     
     Rails.logger.info "JobberAccount found/created: ID=#{@jobber_account.id}, jobber_id=#{@jobber_account.jobber_id}, name=#{@jobber_account.name}"
