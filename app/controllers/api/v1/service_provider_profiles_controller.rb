@@ -34,13 +34,13 @@ class Api::V1::ServiceProviderProfilesController < ApplicationController
       profile_data = profile_params.merge(jobber_account_id: @jobber_account.id)
       @profile = ServiceProviderProfile.new(profile_data)
       
-      Rails.logger.info "Creating profile with data: #{profile_data}"
-      
       if @profile.save
-        render json: @profile, status: :created
+        # NEW: Store profile ID in session for AI enhancement
+        session[:service_provider_profile_id] = @profile.id
+        
+        render json: { success: true, data: @profile }, status: :created
       else
-        Rails.logger.error "Profile creation failed: #{@profile.errors.full_messages}"
-        render json: { errors: @profile.errors.full_messages }, status: :unprocessable_entity
+        render json: { success: false, errors: @profile.errors }, status: :unprocessable_entity
       end
     end
   end
