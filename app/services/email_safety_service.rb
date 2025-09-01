@@ -50,18 +50,29 @@ class EmailSafetyService
   def valid_email_trigger?(webhook_topic)
     # Only these webhook topics should trigger customer emails
     email_worthy_topics = [
-      'VISIT_COMPLETE'     # ✅ Perfect trigger - only when visit is actually done
+      'VISIT_COMPLETE',     # ✅ Original format
+      'VISIT_COMPLETED',    # ✅ FIXED: Add the variant with 'D' 
+      'JOB_COMPLETE',       # ✅ Job completion
+      'JOB_COMPLETED'       # ✅ Job completion variant
     ]
     
-    # These should NOT trigger emails
+    # These should NOT trigger emails (prevents previous n8n spam scenario)
     spam_topics = [
-      'JOB_UPDATE',        # ❌ Moving jobs, status changes
-      'JOB_CREATE',        # ❌ Job creation
-      'CLIENT_UPDATE',     # ❌ Archiving customers - this was your problem!
-      'CLIENT_CREATE',     # ❌ New customers
-      'VISIT_CREATE',      # ❌ Scheduled visits
-      'VISIT_UPDATE',      # ❌ Visit edits (not completion)
-      'PROPERTY_UPDATE'    # ❌ Address changes
+      'JOB_UPDATE',         # ❌ Moving jobs, status changes
+      'JOB_CREATE',         # ❌ Job creation
+      'CLIENT_UPDATE',      # ❌ Archiving customers - this was your n8n problem!
+      'CLIENT_CREATE',      # ❌ New customers
+      'CLIENT_DESTROY',     # ❌ Customer deletion
+      'VISIT_CREATE',       # ❌ Scheduled visits  
+      'VISIT_UPDATE',       # ❌ Visit edits (not completion)
+      'VISIT_EDIT',         # ❌ Visit modifications
+      'VISIT_RESCHEDULE',   # ❌ Date/time changes
+      'VISIT_DELETE',       # ❌ Visit cancellations
+      'PROPERTY_UPDATE',    # ❌ Address changes
+      'INVOICE_UPDATE',     # ❌ Invoice edits
+      'INVOICE_CREATE',     # ❌ Invoice generation
+      'QUOTE_UPDATE',       # ❌ Quote modifications
+      'USER_UPDATE'         # ❌ Staff changes
     ]
     
     return false if spam_topics.include?(webhook_topic)
@@ -75,12 +86,13 @@ class EmailSafetyService
   def development_test_webhook?(webhook_data)
     # Check for development indicators
     visit_id = webhook_data.dig("data", "webHookEvent", "itemId")
-    account_id = webhook_data.dig("data", "account", "id")
+    account_id = webhook_data.dig("data", "webHookEvent", "accountId")
     
     # Common test patterns
     test_indicators = [
       visit_id&.include?('test'),
       visit_id&.include?('dev'),
+      visit_id&.include?('mock'),
       account_id&.include?('test'),
       Rails.env.development?,
       webhook_data.to_s.include?('sandbox')
@@ -99,7 +111,7 @@ class EmailSafetyService
       customer_email: customer_email,
       webhook_topic: webhook_topic,
       webhook_data: webhook_data,
-      status: 'duplicate_blocked',
+      email_status: 'duplicate_blocked',  # FIXED: Use correct column name
       block_reason: block_reason
     )
     
@@ -110,6 +122,7 @@ class EmailSafetyService
   def extract_job_id_from_webhook(webhook_data)
     webhook_data.dig("data", "job", "id") || 
     webhook_data.dig("data", "webHookEvent", "jobId") ||
+    webhook_data.dig("job", "id") ||  # ADDED: Check the job data in your webhook format
     "unknown"
   end
 end
