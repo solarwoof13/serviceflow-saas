@@ -80,6 +80,13 @@ class WebhooksController < ApplicationController
     if webhook_account_id.present?
       Rails.logger.info "📡 Webhook contains account ID: #{webhook_account_id}"
       account = JobberAccount.find_or_merge_by_jobber_id(webhook_account_id)
+
+       # 🔧 ADD DEBUG LOGGING:
+      puts "DEBUG: Webhook account ID: #{webhook_account_id}"
+      puts "DEBUG: Found account ID: #{account.id}"
+      puts "DEBUG: Account name: #{account.name}"
+      puts "DEBUG: Has profile: #{account.service_provider_profile.present?}"
+      puts "DEBUG: Profile details: #{account.service_provider_profile.inspect}"
       
       if account
         Rails.logger.info "✅ Found JobberAccount: #{account.name}"
@@ -276,11 +283,16 @@ class WebhooksController < ApplicationController
   end
 
   def generate_and_send_enhanced_email(processed_data, jobber_account)
+    # 🔧 ADD DEBUG LOGGING:
+    puts "DEBUG: Generating email for account ID: #{jobber_account.id}"
+    puts "DEBUG: Has profile: #{jobber_account.service_provider_profile.present?}"
+    puts "DEBUG: Profile details: #{jobber_account.service_provider_profile.inspect}"
     
     # Get business profile
     business_profile = jobber_account.service_provider_profile
     
     unless business_profile
+      puts "DEBUG: No business profile found - failing"
       return { 
         success: false, 
         error: 'No business profile found - please complete signup first',
