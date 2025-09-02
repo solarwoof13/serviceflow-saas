@@ -55,26 +55,33 @@ class CustomerEmailService
   def generate_and_send_enhanced_email(processed_data)
     Rails.logger.info "🔄 CustomerEmailService: Generating enhanced email..."
     
+    # FIX: Load the actual business profile from the database
+    business_profile = load_business_profile(processed_data)
+    
     # Convert processed_data to visit_data format
     visit_data = {
-      business_profile: nil, # You may want to load this from a config or database
+      business_profile: business_profile,
       customer_name: processed_data[:customer_name],
       customer_location: "#{processed_data[:property_address][:city]}, #{processed_data[:property_address][:province]}",
       visit_notes: processed_data[:service_notes],
       visit_date: Date.current,
-      customer_email: processed_data[:customer_email]
+      customer_email: processed_data[:customer_email],
+      service_type: processed_data[:service_type] || business_profile&.main_service_type
     }
     
     # Generate the email
     email_result = generate_visit_follow_up(visit_data)
     
     if email_result[:success]
+      # FIX: Dynamic from name based on service type
+      from_name = determine_from_name(business_profile&.main_service_type)
+      
       # Send the email using EmailService
       send_result = EmailService.send_customer_email(
         to: processed_data[:customer_email],
         subject: email_result[:subject],
         content: email_result[:email_content],
-        from_name: "Host a Hive Beekeeping Services"
+        from_name: from_name
       )
       
       Rails.logger.info email_result[:success] ? "✅ Enhanced email sent!" : "❌ Enhanced email failed: #{send_result[:error]}"
@@ -94,6 +101,53 @@ class CustomerEmailService
       }
     end
   end
+
+  # ADD: Method to load business profile
+  def load_business_profile(processed_data)
+    # Try to find the business profile based on the webhook data
+    # This assumes you have a way to link the webhook to the correct business profile
+    
+    # Option 1: If you have jobber_account_id in processed_data
+    if processed_data[:jobber_account_id]
+      jobber_account = JobberAccount.find_by(jobber_id: processed_data[:jobber_account_id])
+      return jobber_account&.service_provider_profile
+    end
+    
+    # Option 2: If you store profile_id in session or webhook data
+    if processed_data[:profile_id]
+      return ServiceProviderProfile.find_by(id: processed_data[:profile_id])
+    end
+    
+    # Option 3: Default to the most recent profile (for testing)
+    Rails.logger.warn "⚠️ No business profile found for webhook, using fallback"
+    ServiceProviderProfile.last
+  end
+
+  # ADD: Dynamic from name method
+  def determine_from_name(service_type)
+    case service_type&.downcase
+    when 'beekeeping services', 'beekeeping'
+      "Host a Hive Beekeeping Services"
+    when 'plumbing'
+      "Professional Plumbing Services"
+    when 'hvac services', 'hvac'
+      "Expert HVAC Services"
+    when 'snow removal'
+      "Reliable Snow Removal Services"
+    when 'lawn care & maintenance'
+      "Professional Lawn Care Services"
+    when 'pest control'
+      "Expert Pest Control Services"
+    when 'cleaning services'
+      "Professional Cleaning Services"
+    when 'electrical'
+      "Licensed Electrical Services"
+    when 'landscaping'
+      "Professional Landscaping Services"
+    else
+      "#{service_type || 'Professional Service'} Team"
+    end
+  end
   
   private
   
@@ -101,7 +155,10 @@ class CustomerEmailService
     month = visit_date.strftime('%B')
     day = visit_date.strftime('%d')
     
-    prompt = "You are writing a professional follow-up email as an expert #{service_type.downcase} contractor to a customer after completing service.\n\n"
+    # Dynamic service-type specific system prompt
+    system_prompt = build_dynamic_system_prompt(service_type)
+    
+    prompt = "#{system_prompt}\n\n"
     
     # Business Intelligence from Enhanced Signup
     if business_profile
@@ -113,6 +170,10 @@ class CustomerEmailService
       prompt += "Local Knowledge: #{business_profile.local_expertise}\n"
       prompt += "Years in Business: #{business_profile.years_in_business}\n"
       prompt += "Communication Style: #{business_profile.email_tone} tone\n\n"
+      
+      # Seasonal Services (if applicable)
+      seasonal_info = build_seasonal_context(business_profile, service_type, month)
+      prompt += "#{seasonal_info}\n" if seasonal_info.present?
     end
     
     # Visit Details
@@ -122,36 +183,125 @@ class CustomerEmailService
     prompt += "Service Date: #{month} #{day}\n"
     prompt += "Work Completed: #{visit_notes}\n\n"
     
-    # Smart Instructions
-    prompt += "EMAIL REQUIREMENTS:\n"
-    prompt += "1. Write as the business owner/expert contractor (use the business context above)\n"
-    prompt += "2. Reference the specific work completed from visit notes\n"
-    prompt += "3. Use your knowledge of #{customer_location} location and #{month} timing to add relevant seasonal advice\n"
-    prompt += "4. Include location-specific considerations (weather, local conditions, regional factors)\n"
-    prompt += "5. Add professional tips that demonstrate your #{service_type.downcase} expertise\n"
-    prompt += "6. Sound knowledgeable and experienced, not salesy\n"
-    prompt += "7. Use #{business_profile&.email_tone || 'professional'} tone\n"
-    prompt += "8. Include helpful next steps or maintenance recommendations\n"
-    prompt += "9. Start with a clear subject line\n"
-    prompt += "10. Keep it concise but valuable (2-3 paragraphs max)\n\n"
+    # Smart Instructions based on service type
+    prompt += build_service_specific_instructions(service_type, business_profile, month, customer_location)
     
-    # Service-Specific Intelligence Request
-    prompt += "SPECIFIC REQUESTS:\n"
-    case service_type.downcase
-    when /.*/  # This matches ANY service type
-      if business_profile&.unique_selling_points.present?
-        prompt += "- Use business approach: #{business_profile.unique_selling_points}\n"
-      end
-      if business_profile&.local_expertise.present?
-        prompt += "- Include regional knowledge: #{business_profile.local_expertise}\n"
-      end
-      prompt += "- Consider seasonal considerations for #{service_type} in #{month} in #{customer_location}\n"
-      prompt += "- Use your knowledge of #{service_type.downcase} to provide relevant industry advice\n"
-    end
-    
-    prompt += "\nGenerate a complete customer follow-up email that demonstrates expert #{service_type.downcase} knowledge."
+    prompt += "\nGenerate a complete customer follow-up email that demonstrates expert #{service_type&.downcase || 'service'} knowledge."
     
     prompt
+  end
+
+  def build_dynamic_system_prompt(service_type)
+    case service_type&.downcase
+    when 'beekeeping services', 'beekeeping'
+      "You are an experienced beekeeping business owner with expertise in hive management, honey production, and treatment-free practices. You provide turn-key subscription services where your professional team manages hives at customer locations."
+    when 'plumbing'
+      "You are a licensed plumbing professional with years of experience in residential and commercial plumbing systems, repairs, and installations. You understand water systems, drainage, and local plumbing codes."
+    when 'hvac services', 'hvac'
+      "You are an HVAC specialist with expertise in heating, ventilation, and air conditioning systems, maintenance, and energy-efficient solutions. You understand climate control and indoor air quality."
+    when 'snow removal'
+      "You are a snow removal professional specializing in safe, efficient snow clearing for residential and commercial properties. You understand winter weather patterns and safety protocols."
+    when 'lawn care & maintenance'
+      "You are a lawn care specialist with expertise in turf management, seasonal maintenance, and sustainable landscaping practices. You understand local soil conditions and plant health."
+    when 'pest control'
+      "You are a pest control professional with expertise in integrated pest management, safe treatment methods, and prevention strategies. You understand local pest species and environmental considerations."
+    when 'cleaning services'
+      "You are a professional cleaning service provider with expertise in residential and commercial cleaning, sanitation, and maintenance. You understand different cleaning methods and equipment."
+    when 'electrical'
+      "You are a licensed electrician with expertise in electrical systems, safety codes, and energy-efficient solutions. You understand wiring, circuits, and electrical safety."
+    when 'landscaping'
+      "You are a landscaping professional with expertise in design, installation, and maintenance of outdoor spaces. You understand plant selection, hardscaping, and seasonal care."
+    else
+      "You are an expert #{service_type&.downcase || 'service'} contractor with years of experience providing professional services to customers in your local area."
+    end
+  end
+
+  def build_seasonal_context(business_profile, service_type, month)
+    return nil unless business_profile
+    
+    seasonal_data = []
+    
+    # Only include seasonal info for relevant service types
+    case service_type&.downcase
+    when 'beekeeping services', 'beekeeping', 'lawn care & maintenance', 'landscaping', 'snow removal'
+      if business_profile.spring_services.present? && ['March', 'April', 'May'].include?(month)
+        seasonal_data << "Spring Services: #{business_profile.spring_services}"
+      end
+      if business_profile.summer_services.present? && ['June', 'July', 'August'].include?(month)
+        seasonal_data << "Summer Services: #{business_profile.summer_services}"
+      end
+      if business_profile.fall_services.present? && ['September', 'October', 'November'].include?(month)
+        seasonal_data << "Fall Services: #{business_profile.fall_services}"
+      end
+      if business_profile.winter_services.present? && ['December', 'January', 'February'].include?(month)
+        seasonal_data << "Winter Services: #{business_profile.winter_services}"
+      end
+    end
+    
+    if seasonal_data.any?
+      "SEASONAL CONTEXT:\n#{seasonal_data.join("\n")}\n\n"
+    else
+      nil
+    end
+  end
+
+  def build_service_specific_instructions(service_type, business_profile, month, customer_location)
+    instructions = "\n\nSERVICE-SPECIFIC REQUIREMENTS:\n"
+    
+    case service_type&.downcase
+    when 'beekeeping services', 'beekeeping'
+      instructions += "- Emphasize your turn-key subscription model and professional beekeeping team\n"
+      instructions += "- Reference honey production and seasonal hive management\n"
+      instructions += "- Include treatment-free practices and genetic expertise\n"
+      instructions += "- Mention seasonal considerations for #{month} in #{customer_location}\n"
+    when 'plumbing'
+      instructions += "- Reference specific plumbing work completed and materials used\n"
+      instructions += "- Include water conservation or efficiency tips\n"
+      instructions += "- Mention local water quality considerations for #{customer_location}\n"
+      instructions += "- Add seasonal plumbing advice for #{month}\n"
+    when 'hvac services', 'hvac'
+      instructions += "- Discuss system efficiency and energy savings\n"
+      instructions += "- Include seasonal maintenance recommendations for #{month}\n"
+      instructions += "- Reference local climate considerations for #{customer_location}\n"
+      instructions += "- Mention indoor air quality improvements\n"
+    when 'snow removal'
+      instructions += "- Emphasize safety and thoroughness of snow removal\n"
+      instructions += "- Include ice prevention and de-icing recommendations\n"
+      instructions += "- Reference local weather patterns for #{customer_location} in #{month}\n"
+      instructions += "- Mention equipment used and professional techniques\n"
+    when 'lawn care & maintenance'
+      instructions += "- Reference specific lawn care treatments or maintenance performed\n"
+      instructions += "- Include seasonal lawn care tips for #{month}\n"
+      instructions += "- Mention local soil or climate considerations for #{customer_location}\n"
+      instructions += "- Add recommendations for ongoing lawn health\n"
+    when 'pest control'
+      instructions += "- Reference specific pest issues addressed and treatments used\n"
+      instructions += "- Include prevention tips and seasonal pest considerations for #{month}\n"
+      instructions += "- Mention local pest species common in #{customer_location}\n"
+      instructions += "- Add recommendations for ongoing pest management\n"
+    when 'cleaning services'
+      instructions += "- Reference specific cleaning services provided\n"
+      instructions += "- Include cleaning frequency recommendations\n"
+      instructions += "- Mention any specialty cleaning methods or products used\n"
+      instructions += "- Add tips for maintaining cleanliness\n"
+    when 'electrical'
+      instructions += "- Reference specific electrical work completed\n"
+      instructions += "- Include safety tips and electrical maintenance advice\n"
+      instructions += "- Mention energy efficiency improvements if applicable\n"
+      instructions += "- Add recommendations for electrical system maintenance\n"
+    when 'landscaping'
+      instructions += "- Reference specific landscaping work completed\n"
+      instructions += "- Include seasonal plant care tips for #{month}\n"
+      instructions += "- Mention local plant species suitable for #{customer_location}\n"
+      instructions += "- Add recommendations for ongoing landscape maintenance\n"
+    else
+      instructions += "- Reference the specific #{service_type&.downcase} work completed\n"
+      instructions += "- Include relevant seasonal or local considerations for #{month} in #{customer_location}\n"
+      instructions += "- Demonstrate expertise in #{service_type&.downcase} services\n"
+      instructions += "- Provide helpful next steps or maintenance recommendations\n"
+    end
+    
+    instructions
   end
   
   def call_grok_api(prompt)
