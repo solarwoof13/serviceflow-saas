@@ -19,6 +19,15 @@ class JobberService
     )
   end
 
+  # 🔧 ADD THIS NEW METHOD HERE:
+  def oauth_redirect_uri
+    if Rails.env.production?
+      "https://serviceflow-saas.onrender.com/request_access_token"
+    else
+      "http://localhost:3000/request_access_token"
+    end
+  end
+
   def execute_query(token, query, variables = {}, expected_cost: nil)
     context = { Authorization: "Bearer #{token}" }
     result = JobberAppTemplateRailsApi::Client.query(query, variables: variables, context: context)
@@ -53,7 +62,7 @@ class JobberService
   def create_oauth2_access_token(code)
   return {} if code.blank?
 
-    redirect_uri = "#{ENV['APP_BASE_URL'] || 'https://serviceflow-saas.onrender.com'}/request_access_token"
+    redirect_uri = oauth_redirect_uri
 
     begin
       Rails.logger.info "🔄 Exchanging authorization code for tokens..."
@@ -166,7 +175,8 @@ class JobberService
     end
   end
 
-  def authorization_url(redirect_uri:)
+  def authorization_url(redirect_uri: nil)
+    redirect_uri ||= oauth_redirect_uri
     @oauth_client.auth_code.authorize_url(
       redirect_uri: redirect_uri, 
       scope: 'read write'
