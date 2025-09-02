@@ -1,7 +1,8 @@
 class JobberAccount < ApplicationRecord
   validates :jobber_id, presence: true, uniqueness: true
   # Removed jobber_id validation - consolidating on jobber_id only
-  
+  # Add this alias to map access_token to your existing jobber_access_token column
+  alias_attribute :access_token, :jobber_access_token
   has_one :service_provider_profile, dependent: :destroy
   
   # Check if the access token is still valid
