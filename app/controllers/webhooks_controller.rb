@@ -159,7 +159,14 @@ class WebhooksController < ApplicationController
     
     if visit_id
       puts "Found visit ID: #{visit_id}"
-      access_token = jobber_account.get_valid_access_token
+      begin
+        refreshed_account = jobber_account.refresh_jobber_access_token!
+        access_token = refreshed_account.jobber_access_token
+        puts "✅ Token refreshed successfully for webhook"
+      rescue => e
+        puts "❌ Token refresh failed in webhook: #{e.message}"
+        return generate_enhanced_fallback_data(jobber_account)
+      end
       
       begin
         jobber_data = JobberApiService.fetch_visit_details(visit_id, access_token)
