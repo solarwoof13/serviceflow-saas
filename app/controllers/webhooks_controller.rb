@@ -9,6 +9,12 @@ class WebhooksController < ApplicationController
 
     puts "Webhook topic: #{webhook_topic}"
     puts "Visit ID: #{visit_id}"
+    
+    # Detect and log test webhook early
+    if test_webhook?(webhook_data)
+      puts "🧪 TEST WEBHOOK DETECTED - Processing with test-friendly handling"
+    end
+    
     puts "Webhook data: #{webhook_data}"
     
     # Get the JobberAccount for this webhook with enhanced identification
@@ -167,6 +173,12 @@ class WebhooksController < ApplicationController
         if jobber_data && jobber_data['id'] && !jobber_data['error']
           puts "✅ Successfully fetched real Jobber data"
           return extract_enhanced_visit_data(jobber_data, jobber_account)
+        elsif jobber_data && jobber_data['test_data']
+          puts "🧪 Test visit ID detected - using enhanced fallback data for testing"
+          return generate_enhanced_fallback_data(jobber_account)
+        elsif jobber_data && jobber_data['invalid_id']
+          puts "🧪 Invalid visit ID format (test data) - using enhanced fallback"
+          return generate_enhanced_fallback_data(jobber_account)
         else
           puts "❌ Failed to fetch Jobber data, using enhanced fallback"
           return generate_enhanced_fallback_data(jobber_account)
@@ -338,5 +350,28 @@ class WebhooksController < ApplicationController
   def get_access_token_for_account
     account = JobberAccount.first
     account&.get_valid_access_token
+  end
+
+  private
+
+  # Check if this webhook contains test data
+  def test_webhook?(webhook_data)
+    visit_id = webhook_data.dig("data", "webHookEvent", "itemId")
+    account_id = webhook_data.dig("data", "webHookEvent", "accountId")
+    
+    # Common test patterns
+    test_indicators = [
+      visit_id&.match?(/^test_/i),
+      visit_id&.match?(/^mock_/i),
+      visit_id&.match?(/^dev_/i),
+      visit_id&.match?(/^demo_/i),
+      visit_id&.match?(/test\d+/i),
+      visit_id&.match?(/fake/i),
+      account_id&.include?('test'),
+      Rails.env.development?,
+      webhook_data.to_s.include?('sandbox')
+    ]
+    
+    test_indicators.any?
   end
 end
