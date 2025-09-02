@@ -159,18 +159,25 @@ class WebhooksController < ApplicationController
     
     if visit_id
       puts "Found visit ID: #{visit_id}"
+      # In your webhook controller, handle token refresh failures gracefully:
       begin
         refreshed_account = jobber_account.refresh_jobber_access_token!
         
         if refreshed_account && refreshed_account.is_a?(JobberAccount) && refreshed_account.jobber_access_token.present?
           access_token = refreshed_account.jobber_access_token
-          puts "✅ Token refreshed successfully for webhook"
+          puts "✅ Token refreshed successfully"
         else
-          puts "❌ Token refresh failed in webhook: refresh returned #{refreshed_account.inspect}"
+          puts "❌ Token refresh failed - refresh token invalid"
+          # For production: mark account as needing reauthorization
+          jobber_account.update!(needs_reauthorization: true)
           return generate_enhanced_fallback_data(jobber_account)
         end
       rescue => e
-        puts "❌ Token refresh failed in webhook: #{e.message}"
+        puts "❌ Token refresh error: #{e.message}"
+        if e.message.include?("Unauthorized")
+          puts "🔄 Refresh token expired - account needs reauthorization"
+          jobber_account.update!(needs_reauthorization: true)
+        end
         return generate_enhanced_fallback_data(jobber_account)
       end
       

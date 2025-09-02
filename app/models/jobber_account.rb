@@ -121,31 +121,43 @@ class JobberAccount < ApplicationRecord
   def self.find_or_merge_by_jobber_id(jobber_id, attributes = {})
     puts "🔍 DEBUG: find_or_merge_by_jobber_id called with: #{jobber_id}"
     
+    # Exact match first
     existing_accounts = where(jobber_id: jobber_id)
-    puts "🔍 DEBUG: Found #{existing_accounts.count} accounts"
+    puts "🔍 DEBUG: Found #{existing_accounts.count} exact matches"
     
-    existing_accounts.each do |acc|
-      puts "🔍 DEBUG: Account ID: #{acc.id}, Name: #{acc.name}, Has Profile: #{acc.service_provider_profile.present?}"
+    # Also check for accounts with similar jobber_ids (same account ID)
+    account_part = jobber_id.split('/').last # Extract "Njg1MzA4" from the full ID
+    similar_accounts = JobberAccount.where("jobber_id LIKE ?", "%#{account_part}%").where.not(id: existing_accounts.pluck(:id))
+    puts "🔍 DEBUG: Found #{similar_accounts.count} similar accounts"
+    
+    all_accounts = existing_accounts + similar_accounts
+    puts "🔍 DEBUG: Total accounts found: #{all_accounts.count}"
+    
+    all_accounts.each do |acc|
+      puts "🔍 DEBUG: Account ID: #{acc.id}, Jobber ID: #{acc.jobber_id}, Name: #{acc.name}, Has Profile: #{acc.service_provider_profile.present?}"
     end
     
-    if existing_accounts.count > 1
-      # Merge duplicates - keep the one with business profile
-      Rails.logger.warn "🔄 Found #{existing_accounts.count} duplicate accounts for jobber_id: #{jobber_id}"
+    if all_accounts.count > 1
+      # Always prefer account with business profile
+      account_with_profile = all_accounts.find { |acc| acc.service_provider_profile.present? }
       
-      account_with_profile = existing_accounts.find { |acc| acc.service_provider_profile.present? }
-      account_with_profile ||= existing_accounts.first
-      
-      puts "🔍 DEBUG: Keeping account ID: #{account_with_profile.id}"
-      
-      # Delete duplicates
-      existing_accounts.where.not(id: account_with_profile.id).destroy_all
-      
-      Rails.logger.info "✅ Merged duplicates, keeping account ID: #{account_with_profile.id}"
-      puts "🔍 DEBUG: Returning account ID: #{account_with_profile.id}"
-      return account_with_profile
-    elsif existing_accounts.count == 1
-      puts "🔍 DEBUG: Returning single account ID: #{existing_accounts.first.id}"
-      return existing_accounts.first
+      if account_with_profile
+        puts "🔍 DEBUG: Found account with profile: ID #{account_with_profile.id}"
+        
+        # Delete others
+        all_accounts.reject { |acc| acc.id == account_with_profile.id }.each do |acc|
+          puts "🔍 DEBUG: Deleting duplicate account ID: #{acc.id}"
+          acc.destroy
+        end
+        
+        return account_with_profile
+      else
+        puts "🔍 DEBUG: No account has profile, keeping first"
+        return all_accounts.first
+      end
+    elsif all_accounts.count == 1
+      puts "🔍 DEBUG: Returning single account ID: #{all_accounts.first.id}"
+      return all_accounts.first
     else
       # Create new account
       puts "🔍 DEBUG: Creating new account"
