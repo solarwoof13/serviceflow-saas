@@ -119,45 +119,21 @@ class JobberAccount < ApplicationRecord
 
   # 🔧 ADD THIS NEW METHOD HERE (after auth_status method):
   def self.find_or_merge_by_jobber_id(jobber_id, attributes = {})
-    puts "🔍 DEBUG: find_or_merge_by_jobber_id called with: #{jobber_id}"
-    
-    # Find ALL accounts with this exact jobber_id
-    existing_accounts = JobberAccount.where(jobber_id: jobber_id)
-    puts "🔍 DEBUG: Found #{existing_accounts.count} exact matches"
-    
-    existing_accounts.each do |acc|
-      puts "🔍 DEBUG: Account ID: #{acc.id}, Jobber ID: #{acc.jobber_id}, Name: #{acc.name}, Has Profile: #{acc.service_provider_profile.present?}"
-    end
+    existing_accounts = where(jobber_id: jobber_id)
     
     if existing_accounts.count > 1
-      puts "🔍 DEBUG: Multiple accounts found with same jobber_id!"
-      
       # Always prefer account with business profile
       account_with_profile = existing_accounts.find { |acc| acc.service_provider_profile.present? }
+      account_with_profile ||= existing_accounts.first
       
-      if account_with_profile
-        puts "🔍 DEBUG: Found account with profile: ID #{account_with_profile.id}"
-        
-        # Delete duplicates without profiles
-        existing_accounts.reject { |acc| acc.id == account_with_profile.id }.each do |acc|
-          puts "🔍 DEBUG: Deleting duplicate account ID: #{acc.id}"
-          acc.destroy
-        end
-        
-        return account_with_profile
-      else
-        puts "🔍 DEBUG: No account has profile, keeping first"
-        return existing_accounts.first
-      end
+      # Delete duplicates
+      existing_accounts.where.not(id: account_with_profile.id).destroy_all
+      
+      return account_with_profile
     elsif existing_accounts.count == 1
-      puts "🔍 DEBUG: Returning single account ID: #{existing_accounts.first.id}"
       return existing_accounts.first
     else
-      # Create new account
-      puts "🔍 DEBUG: Creating new account"
-      new_account = create!(attributes.merge(jobber_id: jobber_id))
-      puts "🔍 DEBUG: Created account ID: #{new_account.id}"
-      return new_account
+      return create!(attributes.merge(jobber_id: jobber_id))
     end
   end
 end

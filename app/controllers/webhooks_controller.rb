@@ -152,51 +152,46 @@ class WebhooksController < ApplicationController
   end
 
   def process_jobber_data_enhanced(webhook_data, jobber_account)
-    puts "Processing Jobber data with enhanced business intelligence..."
-    
     # Extract visit ID from real Jobber webhook
     visit_id = webhook_data.dig("data", "webHookEvent", "itemId")
     
-    if visit_id
-      puts "Found visit ID: #{visit_id}"
-      # In your webhook controller, handle token refresh failures gracefully:
-      begin
-        refreshed_account = jobber_account.refresh_jobber_access_token!
-        
-        if refreshed_account && refreshed_account.is_a?(JobberAccount) && refreshed_account.jobber_access_token.present?
-          access_token = refreshed_account.jobber_access_token
-          puts "✅ Token refreshed successfully"
-        else
-          puts "❌ Token refresh failed - refresh token invalid"
-          # For production: mark account as needing reauthorization
-          jobber_account.update!(needs_reauthorization: true)
-          return generate_enhanced_fallback_data(jobber_account)
-        end
-      rescue => e
-        puts "❌ Token refresh error: #{e.message}"
-        if e.message.include?("Unauthorized")
-          puts "🔄 Refresh token expired - account needs reauthorization"
-          jobber_account.update!(needs_reauthorization: true)
-        end
+    unless visit_id
+      Rails.logger.info "No visit ID found in webhook"
+      return generate_enhanced_fallback_data(jobber_account)
+    end
+    
+    # Handle token refresh with graceful error handling
+    begin
+      refreshed_account = jobber_account.refresh_jobber_access_token!
+      
+      unless refreshed_account && refreshed_account.jobber_access_token.present?
+        Rails.logger.warn "Token refresh failed for #{jobber_account.name} - using fallback"
+        jobber_account.update!(needs_reauthorization: true)
         return generate_enhanced_fallback_data(jobber_account)
       end
       
-      begin
-        jobber_data = JobberApiService.fetch_visit_details(visit_id, access_token)
-        
-        if jobber_data && jobber_data['id'] && !jobber_data['error']
-          puts "✅ Successfully fetched real Jobber data"
-          return extract_enhanced_visit_data(jobber_data, jobber_account)
-        else
-          puts "❌ Failed to fetch Jobber data, using enhanced fallback"
-          return generate_enhanced_fallback_data(jobber_account)
-        end
-      rescue => e
-        puts "💥 Exception calling Jobber API: #{e.message}"
+      access_token = refreshed_account.jobber_access_token
+    rescue => e
+      Rails.logger.error "Token refresh error for #{jobber_account.name}: #{e.message}"
+      if e.message.include?("Unauthorized")
+        jobber_account.update!(needs_reauthorization: true)
+      end
+      return generate_enhanced_fallback_data(jobber_account)
+    end
+    
+    # Fetch visit data from Jobber API
+    begin
+      jobber_data = JobberApiService.fetch_visit_details(visit_id, access_token)
+      
+      if jobber_data && jobber_data['id'] && !jobber_data['error']
+        Rails.logger.info "Successfully fetched Jobber data for visit #{visit_id}"
+        return extract_enhanced_visit_data(jobber_data, jobber_account)
+      else
+        Rails.logger.warn "Failed to fetch Jobber data for visit #{visit_id} - using fallback"
         return generate_enhanced_fallback_data(jobber_account)
       end
-    else
-      puts "No visit ID found, using enhanced test data"
+    rescue => e
+      Rails.logger.error "Exception calling Jobber API for visit #{visit_id}: #{e.message}"
       return generate_enhanced_fallback_data(jobber_account)
     end
   end
