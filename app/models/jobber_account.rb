@@ -5,6 +5,7 @@ class JobberAccount < ApplicationRecord
   alias_attribute :access_token, :jobber_access_token
   has_one :service_provider_profile, dependent: :destroy
   
+
   # Check if the access token is still valid
   def valid_jobber_access_token?
     return false if jobber_access_token.blank?
@@ -113,6 +114,30 @@ class JobberAccount < ApplicationRecord
       "active"
     else
       "expired"
+    end
+  end
+
+  # 🔧 ADD THIS NEW METHOD HERE (after auth_status method):
+  def self.find_or_merge_by_jobber_id(jobber_id, attributes = {})
+    existing_accounts = where(jobber_id: jobber_id)
+    
+    if existing_accounts.count > 1
+      # Merge duplicates - keep the one with business profile
+      Rails.logger.warn "🔄 Found #{existing_accounts.count} duplicate accounts for jobber_id: #{jobber_id}"
+      
+      account_with_profile = existing_accounts.find { |acc| acc.service_provider_profile.present? }
+      account_with_profile ||= existing_accounts.first
+      
+      # Delete duplicates
+      existing_accounts.where.not(id: account_with_profile.id).destroy_all
+      
+      Rails.logger.info "✅ Merged duplicates, keeping account ID: #{account_with_profile.id}"
+      return account_with_profile
+    elsif existing_accounts.count == 1
+      return existing_accounts.first
+    else
+      # Create new account
+      return create!(attributes.merge(jobber_id: jobber_id))
     end
   end
 end
