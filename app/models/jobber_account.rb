@@ -119,7 +119,7 @@ class JobberAccount < ApplicationRecord
 
   # 🔧 ADD THIS NEW METHOD HERE (after auth_status method):
   def self.find_or_merge_by_jobber_id(jobber_id, attributes = {})
-    existing_accounts = where(jobber_id: jobber_id)
+    existing_accounts = includes(:service_provider_profile).where(jobber_id: jobber_id)
     
     if existing_accounts.count > 1
       # Always prefer account with business profile
