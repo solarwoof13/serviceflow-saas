@@ -274,6 +274,33 @@ class WebhooksController < ApplicationController
   end
 
   def generate_and_send_enhanced_email(processed_data, jobber_account)
+    puts "=== WEBHOOK DEBUG ==="
+    puts "JobberAccount ID: #{jobber_account.id}"
+    puts "JobberAccount name: #{jobber_account.name}"
+    puts "JobberAccount jobber_id: #{jobber_account.jobber_id}"
+    puts "Service profiles count: #{ServiceProviderProfile.where(jobber_account_id: jobber_account.id).count}"
+    
+    # 🔍 ADD THIS: Check for multiple accounts with same jobber_id
+    puts "=== MULTIPLE ACCOUNTS CHECK ==="
+    accounts = JobberAccount.where(jobber_id: jobber_account.jobber_id)
+    puts "Accounts with this jobber_id: #{accounts.count}"
+    accounts.each do |acc|
+      puts "Account ID: #{acc.id}, Name: #{acc.name}, Has Profile: #{acc.service_provider_profile.present?}"
+    end
+
+    business_profile = jobber_account.service_provider_profile
+    puts "Business profile found: #{business_profile.present?}"
+    puts "Business profile: #{business_profile&.company_name}"
+    puts "Business profile ID: #{business_profile&.id}"
+    
+    unless business_profile
+      return { 
+        success: false, 
+        error: 'No business profile found - please complete signup first',
+        email_sent: false
+      }
+    end
+    
     # Get business profile
     business_profile = jobber_account.service_provider_profile
     
