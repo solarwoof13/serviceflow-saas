@@ -119,7 +119,14 @@ class JobberAccount < ApplicationRecord
 
   # 🔧 ADD THIS NEW METHOD HERE (after auth_status method):
   def self.find_or_merge_by_jobber_id(jobber_id, attributes = {})
+    puts "🔍 DEBUG: find_or_merge_by_jobber_id called with: #{jobber_id}"
+    
     existing_accounts = where(jobber_id: jobber_id)
+    puts "🔍 DEBUG: Found #{existing_accounts.count} accounts"
+    
+    existing_accounts.each do |acc|
+      puts "🔍 DEBUG: Account ID: #{acc.id}, Name: #{acc.name}, Has Profile: #{acc.service_provider_profile.present?}"
+    end
     
     if existing_accounts.count > 1
       # Merge duplicates - keep the one with business profile
@@ -128,16 +135,23 @@ class JobberAccount < ApplicationRecord
       account_with_profile = existing_accounts.find { |acc| acc.service_provider_profile.present? }
       account_with_profile ||= existing_accounts.first
       
+      puts "🔍 DEBUG: Keeping account ID: #{account_with_profile.id}"
+      
       # Delete duplicates
       existing_accounts.where.not(id: account_with_profile.id).destroy_all
       
       Rails.logger.info "✅ Merged duplicates, keeping account ID: #{account_with_profile.id}"
+      puts "🔍 DEBUG: Returning account ID: #{account_with_profile.id}"
       return account_with_profile
     elsif existing_accounts.count == 1
+      puts "🔍 DEBUG: Returning single account ID: #{existing_accounts.first.id}"
       return existing_accounts.first
     else
       # Create new account
-      return create!(attributes.merge(jobber_id: jobber_id))
+      puts "🔍 DEBUG: Creating new account"
+      new_account = create!(attributes.merge(jobber_id: jobber_id))
+      puts "🔍 DEBUG: Created account ID: #{new_account.id}"
+      return new_account
     end
   end
 end
