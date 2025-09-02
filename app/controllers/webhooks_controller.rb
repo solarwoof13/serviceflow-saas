@@ -161,8 +161,14 @@ class WebhooksController < ApplicationController
       puts "Found visit ID: #{visit_id}"
       begin
         refreshed_account = jobber_account.refresh_jobber_access_token!
-        access_token = refreshed_account.jobber_access_token
-        puts "✅ Token refreshed successfully for webhook"
+        
+        if refreshed_account && refreshed_account.is_a?(JobberAccount) && refreshed_account.jobber_access_token.present?
+          access_token = refreshed_account.jobber_access_token
+          puts "✅ Token refreshed successfully for webhook"
+        else
+          puts "❌ Token refresh failed in webhook: refresh returned #{refreshed_account.inspect}"
+          return generate_enhanced_fallback_data(jobber_account)
+        end
       rescue => e
         puts "❌ Token refresh failed in webhook: #{e.message}"
         return generate_enhanced_fallback_data(jobber_account)
