@@ -107,6 +107,20 @@ class AuthController < ApplicationController
         }, status: 400
       end
 
+      # ADD: Ensure ServiceProviderProfile exists
+      Rails.logger.info "🔍 Checking if profile exists for account: #{account.name}"
+      if account.service_provider_profile.blank?
+        Rails.logger.info "📝 Creating new ServiceProviderProfile for #{account.name}"
+        account.create_service_provider_profile!(
+          company_name: account.name,
+          main_service_type: "General Service",
+          profile_completed: false
+        )
+        Rails.logger.info "✅ ServiceProviderProfile created successfully"
+      else
+        Rails.logger.info "✅ ServiceProviderProfile already exists"
+      end
+
       # Create session
       session[:account_id] = account.jobber_id
       Rails.logger.info "✅ OAuth completed successfully for account: #{account.name} (#{account.jobber_id})"
