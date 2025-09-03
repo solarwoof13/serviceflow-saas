@@ -3,7 +3,9 @@ module SubscriptionGates
   extend ActiveSupport::Concern
   
   def current_wix_user
-    @current_wix_user ||= WixUser.find_by(wix_id: session[:wix_user_id])
+    # Support both session (production) and params (testing)
+    wix_id = session[:wix_user_id] || params[:wix_user_id]
+    @current_wix_user ||= WixUser.find_by(wix_id: wix_id)
   end
   
   def has_feature?(feature_name)
@@ -21,4 +23,3 @@ module SubscriptionGates
     end
     true
   end
-end

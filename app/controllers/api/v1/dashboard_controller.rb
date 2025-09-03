@@ -15,7 +15,8 @@ class Api::V1::DashboardController < ApplicationController
   end
   
   def cached_emails
-    # Check cache feature
+    return render json: { error: 'User not found' }, status: :not_found unless current_wix_user
+    
     if has_feature?('unlimited_cache')
       emails = get_emails_unlimited
     elsif has_feature?('extended_cache')
@@ -64,6 +65,18 @@ class Api::V1::DashboardController < ApplicationController
   end
   
   private
+
+  def get_emails_limited
+    current_wix_user.emails.where('created_at > ?', 24.hours.ago).limit(10)
+  end
+  
+  def get_emails_extended
+    current_wix_user.emails.where('created_at > ?', 7.days.ago).limit(50)
+  end
+  
+  def get_emails_unlimited
+    current_wix_user.emails.limit(100)
+  end
   
   def cache_type_description
     if has_feature?('unlimited_cache')
