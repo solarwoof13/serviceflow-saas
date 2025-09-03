@@ -7,12 +7,6 @@ class WebhooksController < ApplicationController
     webhook_topic = webhook_data.dig("data", "webHookEvent", "topic")
     visit_id = webhook_data.dig("data", "webHookEvent", "itemId")
 
-    # CHECK FOR DUPLICATES
-    if jobber_account.processed_visit_ids.include?(visit_id)
-      Rails.logger.info "⚠️ Duplicate webhook for visit #{visit_id} - skipping"
-      return render json: { status: 'duplicate', message: 'Visit already processed' }, status: :ok
-    end
-
     puts "Webhook topic: #{webhook_topic}"
     puts "Visit ID: #{visit_id}"
     puts "Webhook data: #{webhook_data}"
@@ -24,6 +18,12 @@ class WebhooksController < ApplicationController
       puts "❌ No JobberAccount found - using fallback processing"
       render json: { error: 'Account not found' }, status: :not_found
       return
+    end
+
+     # CHECK FOR DUPLICATES
+    if jobber_account.processed_visit_ids.include?(visit_id)
+      Rails.logger.info "⚠️ Duplicate webhook for visit #{visit_id} - skipping"
+      return render json: { status: 'duplicate', message: 'Visit already processed' }, status: :ok
     end
     
     # Process with enhanced business intelligence
