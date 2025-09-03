@@ -117,23 +117,27 @@ class JobberAccount < ApplicationRecord
     end
   end
 
-  # 🔧 ADD THIS NEW METHOD HERE (after auth_status method):
   def self.find_or_merge_by_jobber_id(jobber_id, attributes = {})
+    puts "DEBUG: Finding accounts for jobber_id: #{jobber_id}"
     existing_accounts = includes(:service_provider_profile).where(jobber_id: jobber_id)
+    puts "DEBUG: Found #{existing_accounts.count} accounts"
+    
+    existing_accounts.each do |acc|
+      puts "DEBUG: Account ID: #{acc.id}, Profile present: #{acc.service_provider_profile.present?}"
+    end
     
     if existing_accounts.count > 1
-      # Always prefer account with business profile
+      puts "DEBUG: Multiple accounts - finding one with profile"
       account_with_profile = existing_accounts.find { |acc| acc.service_provider_profile.present? }
-      account_with_profile ||= existing_accounts.first
+      puts "DEBUG: Account with profile: #{account_with_profile&.id}"
       
-      # Delete duplicates
-      existing_accounts.where.not(id: account_with_profile.id).destroy_all
-      
-      return account_with_profile
-    elsif existing_accounts.count == 1
-      return existing_accounts.first
-    else
-      return create!(attributes.merge(jobber_id: jobber_id))
+      if account_with_profile
+        existing_accounts.where.not(id: account_with_profile.id).destroy_all
+        puts "DEBUG: Deleted duplicates"
+        return account_with_profile
+      end
     end
+    
+    existing_accounts.first || create!(attributes.merge(jobber_id: jobber_id))
   end
 end
