@@ -212,6 +212,12 @@ class WebhooksController < ApplicationController
     address_data = property_data['address'] || {}
     notes_data = jobber_data['notes']&.dig('nodes') || []
     line_items = job_data['lineItems']&.dig('nodes') || []
+    # ADD TECHNICIAN INFO
+    technician_data = jobber_data.dig('assignedUsers', 'nodes', 0) || {}
+    technician_name = technician_data['name'] || 'Your Service Team'
+    # ADD SIGNATURE DATA (if available)
+    signature_data = jobber_data.dig('signature') || {}
+    customer_signature = signature_data['signature'] || nil
     
     # Get visit completion date for filtering
     visit_completed_at = jobber_data.dig('completedAt') || jobber_data.dig('endAt')
