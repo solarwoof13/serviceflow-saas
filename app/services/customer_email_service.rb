@@ -18,14 +18,20 @@ class CustomerEmailService
     visit_date = visit_data[:visit_date] || Date.current
     service_type = business_profile&.main_service_type || 'General Service'
     
-    # Build intelligent prompt
+    # ADD NEW DATA
+    technician_name = visit_data[:technician_name] || 'Your Service Team'
+    customer_signature = visit_data[:customer_signature]
+
+    # Build intelligent prompt with ALL data
     prompt = build_visit_email_prompt(
       business_profile: business_profile,
       customer_name: customer_name,
       customer_location: customer_location,
       visit_notes: visit_notes,
       service_type: service_type,
-      visit_date: visit_date
+      visit_date: visit_date,
+      technician_name: technician_name,
+      customer_signature: customer_signature
     )
     
     # Generate with AI
@@ -151,8 +157,7 @@ class CustomerEmailService
   
   private
   
-  def build_visit_email_prompt(business_profile:, customer_name:, customer_location:, visit_notes:, service_type:, visit_date:)
-    month = visit_date.strftime('%B')
+  def build_visit_email_prompt(business_profile:, customer_name:, customer_location:, visit_notes:, service_type:, visit_date:, technician_name: nil, customer_signature: nil)
     day = visit_date.strftime('%d')
     
     # Dynamic service-type specific system prompt
@@ -175,7 +180,17 @@ class CustomerEmailService
       seasonal_info = build_seasonal_context(business_profile, service_type, month)
       prompt += "#{seasonal_info}\n" if seasonal_info.present?
     end
-    
+
+    # SIGNATURE INSTRUCTIONS - BE VERY SPECIFIC
+    prompt += "\n\nSIGNATURE REQUIREMENTS (CRITICAL - FOLLOW EXACTLY):\n"
+    prompt += "SIGNATURE MUST BE FROM: #{technician_name || owner_name || 'Your Service Team'}\n"
+    prompt += "COMPANY NAME: #{company_name}\n"
+    prompt += "CONTACT INFO: #{contact_info}\n"
+    prompt += "DO NOT use customer name in signature\n"
+    prompt += "DO NOT use placeholders like [Your Name], [Contact Name], etc.\n"
+    prompt += "DO NOT sign as the customer - sign as the service provider\n"
+    prompt += "Use the technician name provided above for the signature\n\n"
+
     # Visit Details
     prompt += "VISIT INFORMATION:\n"
     prompt += "Customer: #{customer_name}\n"

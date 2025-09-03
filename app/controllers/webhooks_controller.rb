@@ -198,37 +198,62 @@ class WebhooksController < ApplicationController
     notes_data = jobber_data['notes']&.dig('nodes') || []
     line_items = job_data['lineItems']&.dig('nodes') || []
     
-    # Extract customer info
+    # Get visit completion date for filtering
+    visit_completed_at = jobber_data.dig('completedAt') || jobber_data.dig('endAt')
+    
+    # FILTER NOTES: Only include notes from the visit date
+    if visit_completed_at
+      visit_date = Date.parse(visit_completed_at) rescue nil
+      if visit_date
+        # Filter notes to within 1 day of visit completion
+        relevant_notes = notes_data.select do |note|
+          note_date = Date.parse(note['createdAt']) rescue nil
+          note_date && (note_date - visit_date).abs <= 1
+        end
+        notes_data = relevant_notes
+        puts "DEBUG: Filtered #{notes_data.length} relevant notes from original #{jobber_data['notes']&.dig('nodes')&.length || 0}"
+      end
+    end
+    
+    # Extract customer info (unchanged)
     company_name = client_data['companyName']
     first_name = client_data['firstName'] || "Customer"
     last_name = client_data['lastName'] || ""
     
     customer_name = if company_name.present?
-                     company_name
-                   else
-                     "#{first_name} #{last_name}".strip
-                   end
+                    company_name
+                  else
+                    "#{first_name} #{last_name}".strip
+                  end
     
-    # Extract email
+    # Extract email (unchanged)
     emails = client_data['emails'] || []
     customer_email = emails.find { |email| email['primary'] }&.dig('address') || 
-                     emails.first&.dig('address') || 
-                     "customer@example.com"
+                    emails.first&.dig('address') || 
+                    "customer@example.com"
     
-    # Extract location
+    # Extract location (unchanged)
     customer_location = "#{address_data['city']}, #{address_data['province']}" if address_data['city']
     customer_location ||= "Unknown location"
     
-    # Extract and combine notes
+    # ADD TECHNICIAN INFO
+    technician_data = jobber_data.dig('assignedUsers', 'nodes', 0) || {}
+    technician_name = technician_data['name'] || 'Your Service Team'
+    
+    # ADD SIGNATURE DATA (if available)
+    signature_data = jobber_data.dig('signature') || {}
+    customer_signature = signature_data['signature'] || nil
+    
+    # Extract and combine ONLY RELEVANT notes
     visit_notes = []
     
-    # Add visit notes
+    # Add visit notes (already filtered above)
     if notes_data.any?
-      note_content = notes_data.map { |note| note['message'] }.join('. ')
+      note_content = notes_data.map { |note| note['message'] || note['content'] }.join('. ')
       visit_notes << note_content if note_content.present?
     end
     
-    # Add line items as context
+    # Add line items as context (optional - can remove if too much)
     if line_items.any?
       line_item_content = line_items.map { |item| "#{item['name']}: #{item['description']}" }.join('. ')
       visit_notes << line_item_content if line_item_content.present?
@@ -237,13 +262,16 @@ class WebhooksController < ApplicationController
     combined_notes = visit_notes.join('. ').strip
     combined_notes = "Service visit completed successfully" if combined_notes.blank?
     
+    # RETURN ENHANCED DATA with technician and signature
     {
       job_id: job_data['jobNumber'] || "SF-#{rand(1000..9999)}",
       customer_name: customer_name,
       customer_email: customer_email,
       customer_location: customer_location,
       visit_notes: combined_notes,
-      visit_date: Date.current
+      visit_date: visit_completed_at || Date.current,  # Use actual visit date
+      technician_name: technician_name,  # NEW
+      customer_signature: customer_signature  # NEW
     }
   end
 
@@ -283,14 +311,16 @@ class WebhooksController < ApplicationController
     end
     
     
-    # Prepare visit data for new CustomerEmailService
+    # Prepare visit data with NEW fields
     visit_data = {
       business_profile: business_profile,
       customer_name: processed_data[:customer_name],
       customer_email: processed_data[:customer_email],
       customer_location: processed_data[:customer_location],
       visit_notes: processed_data[:visit_notes],
-      visit_date: processed_data[:visit_date]
+      visit_date: processed_data[:visit_date],
+      technician_name: processed_data[:technician_name],  # NEW
+      customer_signature: processed_data[:customer_signature]  # NEW
     }
     
     # Generate AI email using new service
