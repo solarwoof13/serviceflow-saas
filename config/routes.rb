@@ -31,6 +31,12 @@ Rails.application.routes.draw do
     end
   end
 
+  namespace :api do
+    namespace :v1 do
+      post 'wix/sync_user', to: 'wix#sync_user'
+      get 'wix/subscription_status', to: 'wix#get_subscription_status'
+    end
+  end
   
   # Health check and monitoring
   get "/heartbeat", to: "application#heartbeat"

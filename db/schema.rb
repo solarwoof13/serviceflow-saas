@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_09_03_165730) do
+ActiveRecord::Schema[7.2].define(version: 2025_09_03_191051) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -29,6 +29,13 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_03_165730) do
     t.index ["job_id"], name: "index_email_deduplication_logs_on_job_id"
     t.index ["visit_id", "customer_email"], name: "idx_dedup_visit_customer"
     t.index ["visit_id"], name: "index_email_deduplication_logs_on_visit_id"
+  end
+
+  create_table "features", force: :cascade do |t|
+    t.string "name"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_features_on_name"
   end
 
   create_table "jobber_accounts", force: :cascade do |t|
@@ -72,5 +79,34 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_03_165730) do
     t.index ["service_areas"], name: "idx_spp_service_areas", using: :gin
   end
 
+  create_table "subscription_features", force: :cascade do |t|
+    t.bigint "subscription_id", null: false
+    t.bigint "feature_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["feature_id"], name: "index_subscription_features_on_feature_id"
+    t.index ["subscription_id"], name: "index_subscription_features_on_subscription_id"
+  end
+
+  create_table "subscriptions", force: :cascade do |t|
+    t.bigint "wix_user_id", null: false
+    t.integer "level"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["wix_user_id"], name: "index_subscriptions_on_wix_user_id"
+  end
+
+  create_table "wix_users", force: :cascade do |t|
+    t.string "wix_id"
+    t.string "email"
+    t.jsonb "settings"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["wix_id"], name: "index_wix_users_on_wix_id"
+  end
+
   add_foreign_key "service_provider_profiles", "jobber_accounts"
+  add_foreign_key "subscription_features", "features"
+  add_foreign_key "subscription_features", "subscriptions"
+  add_foreign_key "subscriptions", "wix_users"
 end
