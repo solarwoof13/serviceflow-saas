@@ -222,18 +222,38 @@ class WebhooksController < ApplicationController
     # Get visit completion date for filtering
     visit_completed_at = jobber_data.dig('completedAt') || jobber_data.dig('endAt')
     
-    # FILTER NOTES: Only include notes from the visit date
+    # FILTER NOTES: Only include notes from within 2 hours of visit completion
     if visit_completed_at
-      visit_date = Date.parse(visit_completed_at) rescue nil
-      if visit_date
-        # Filter notes to within 1 day of visit completion
+      visit_datetime = DateTime.parse(visit_completed_at) rescue nil
+      if visit_datetime
+        # Filter notes to within 2 hours of visit completion
         relevant_notes = notes_data.select do |note|
-          note_date = Date.parse(note['createdAt']) rescue nil
-          note_date && (note_date - visit_date).abs <= 1
+          note_datetime = DateTime.parse(note['createdAt']) rescue nil
+          if note_datetime
+            time_diff = (note_datetime - visit_datetime).abs
+            time_diff <= 2.hours  # More precise: 2 hours instead of 1 day
+          else
+            false  # Exclude notes without valid dates
+          end
         end
+        
+        original_count = jobber_data['notes']&.dig('nodes')&.length || 0
+        filtered_count = relevant_notes.length
+        
+        Rails.logger.info "📝 Note filtering: #{filtered_count} relevant notes from #{original_count} total"
+        puts "DEBUG: Filtered #{filtered_count} relevant notes from #{original_count} total"
+        
         notes_data = relevant_notes
-        puts "DEBUG: Filtered #{notes_data.length} relevant notes from original #{jobber_data['notes']&.dig('nodes')&.length || 0}"
+      else
+        Rails.logger.warn "⚠️ Could not parse visit completion date: #{visit_completed_at}"
+        puts "DEBUG: Could not parse visit completion date"
       end
+    end
+
+    # Add this after filtering to see what notes are included
+    if notes_data.any?
+      Rails.logger.info "📝 First filtered note: #{notes_data.first['message']&.first(100)}..."
+      Rails.logger.info "📝 Last filtered note: #{notes_data.last['message']&.first(100)}..."
     end
     
     # Extract customer info (unchanged)
