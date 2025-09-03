@@ -7,6 +7,12 @@ class WebhooksController < ApplicationController
     webhook_topic = webhook_data.dig("data", "webHookEvent", "topic")
     visit_id = webhook_data.dig("data", "webHookEvent", "itemId")
 
+    # CHECK FOR DUPLICATES
+    if jobber_account.processed_visit_ids.include?(visit_id)
+      Rails.logger.info "⚠️ Duplicate webhook for visit #{visit_id} - skipping"
+      return render json: { status: 'duplicate', message: 'Visit already processed' }, status: :ok
+    end
+
     puts "Webhook topic: #{webhook_topic}"
     puts "Visit ID: #{visit_id}"
     puts "Webhook data: #{webhook_data}"
@@ -50,6 +56,15 @@ class WebhooksController < ApplicationController
       puts "✅ Enhanced AI Email Generated and Sent!"
       puts "Email subject: #{email_result[:subject]}"
       puts "Email preview: #{email_result[:email_content][0..200]}..."
+
+      # AFTER SUCCESSFUL PROCESSING, MARK AS PROCESSED
+      if email_result[:success] && email_result[:email_sent]
+        jobber_account.processed_visit_ids ||= []
+        jobber_account.processed_visit_ids << visit_id
+        jobber_account.save
+        Rails.logger.info "✅ Marked visit #{visit_id} as processed"
+      end
+
     else
       puts "❌ Enhanced email generation failed: #{email_result[:error]}"
     end

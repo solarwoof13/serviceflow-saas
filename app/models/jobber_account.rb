@@ -4,7 +4,7 @@ class JobberAccount < ApplicationRecord
   # Add this alias to map access_token to your existing jobber_access_token column
   alias_attribute :access_token, :jobber_access_token
   has_one :service_provider_profile, dependent: :destroy
-  
+  field :processed_visit_ids, type: Array, default: []
 
   # Check if the access token is still valid
   def valid_jobber_access_token?
