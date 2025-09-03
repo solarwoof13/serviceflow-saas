@@ -1,0 +1,19 @@
+----- CLI crash report at 2025-09-03T21:25:39.604Z
+Error Trace
+DeviceCodeTimedOut: DeviceCodeTimedOut
+    at waitForLogin (/Users/mikejames/.npm/_npx/b4b80899c877fe3d/node_modules/@wix/cli-auth/src/auth-strategies/account-auth-strategy.ts:63:13)
+    at login (/Users/mikejames/.npm/_npx/b4b80899c877fe3d/node_modules/@wix/cli-auth/src/auth-strategies/account-auth-strategy.ts:158:25)
+    at <anonymous> (/Users/mikejames/.npm/_npx/b4b80899c877fe3d/node_modules/@wix/cli-auth/src/components/Login.tsx:48:26)
+caused by: TimeoutError: Promise timed out after 600000 milliseconds
+    at <anonymous> (/Users/mikejames/.npm/_npx/b4b80899c877fe3d/node_modules/node_modules/p-timeout/index.js:73:24)
+    at new Promise (<anonymous>)
+    at pTimeout (/Users/mikejames/.npm/_npx/b4b80899c877fe3d/node_modules/node_modules/p-timeout/index.js:49:25)
+    at pWaitFor (/Users/mikejames/.npm/_npx/b4b80899c877fe3d/node_modules/node_modules/p-wait-for/index.js:46:16)
+    at waitForLogin (/Users/mikejames/.npm/_npx/b4b80899c877fe3d/node_modules/@wix/cli-auth/src/auth-strategies/account-auth-strategy.ts:28:28)
+    at login (/Users/mikejames/.npm/_npx/b4b80899c877fe3d/node_modules/@wix/cli-auth/src/auth-strategies/account-auth-strategy.ts:158:31)
+    at <anonymous> (/Users/mikejames/.npm/_npx/b4b80899c877fe3d/node_modules/@wix/cli-auth/src/components/Login.tsx:48:32)
+    at <anonymous> (/Users/mikejames/.npm/_npx/b4b80899c877fe3d/node_modules/node_modules/react-async-hook/src/index.ts:257:59)
+    at executeAsyncOperation2 (/Users/mikejames/.npm/_npx/b4b80899c877fe3d/node_modules/node_modules/react-async-hook/src/index.ts:257:33)
+    at Object.execute (/Users/mikejames/.npm/_npx/b4b80899c877fe3d/node_modules/node_modules/react-async-hook/src/index.ts:285:48)
+Error Info
+{}

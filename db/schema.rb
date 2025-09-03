@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_09_03_191051) do
+ActiveRecord::Schema[7.2].define(version: 2025_09_03_205443) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -29,6 +29,16 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_03_191051) do
     t.index ["job_id"], name: "index_email_deduplication_logs_on_job_id"
     t.index ["visit_id", "customer_email"], name: "idx_dedup_visit_customer"
     t.index ["visit_id"], name: "index_email_deduplication_logs_on_visit_id"
+  end
+
+  create_table "emails", force: :cascade do |t|
+    t.string "subject"
+    t.text "content"
+    t.bigint "wix_user_id", null: false
+    t.datetime "sent_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["wix_user_id"], name: "index_emails_on_wix_user_id"
   end
 
   create_table "features", force: :cascade do |t|
@@ -96,6 +106,16 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_03_191051) do
     t.index ["wix_user_id"], name: "index_subscriptions_on_wix_user_id"
   end
 
+  create_table "visits", force: :cascade do |t|
+    t.string "title"
+    t.text "notes"
+    t.bigint "wix_user_id", null: false
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["wix_user_id"], name: "index_visits_on_wix_user_id"
+  end
+
   create_table "wix_users", force: :cascade do |t|
     t.string "wix_id"
     t.string "email"
@@ -105,8 +125,10 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_03_191051) do
     t.index ["wix_id"], name: "index_wix_users_on_wix_id"
   end
 
+  add_foreign_key "emails", "wix_users"
   add_foreign_key "service_provider_profiles", "jobber_accounts"
   add_foreign_key "subscription_features", "features"
   add_foreign_key "subscription_features", "subscriptions"
   add_foreign_key "subscriptions", "wix_users"
+  add_foreign_key "visits", "wix_users"
 end
