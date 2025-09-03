@@ -118,24 +118,13 @@ class JobberAccount < ApplicationRecord
   end
 
   def self.find_or_merge_by_jobber_id(jobber_id, attributes = {})
-    puts "DEBUG: Finding accounts for jobber_id: #{jobber_id}"
     existing_accounts = includes(:service_provider_profile).where(jobber_id: jobber_id)
-    puts "DEBUG: Found #{existing_accounts.count} accounts"
-    
-    existing_accounts.each do |acc|
-      puts "DEBUG: Account ID: #{acc.id}, Profile present: #{acc.service_provider_profile.present?}"
-    end
     
     if existing_accounts.count > 1
-      puts "DEBUG: Multiple accounts - finding one with profile"
       account_with_profile = existing_accounts.find { |acc| acc.service_provider_profile.present? }
-      puts "DEBUG: Account with profile: #{account_with_profile&.id}"
-      
-      if account_with_profile
-        existing_accounts.where.not(id: account_with_profile.id).destroy_all
-        puts "DEBUG: Deleted duplicates"
-        return account_with_profile
-      end
+      account_with_profile ||= existing_accounts.first
+      existing_accounts.where.not(id: account_with_profile.id).destroy_all
+      return account_with_profile
     end
     
     existing_accounts.first || create!(attributes.merge(jobber_id: jobber_id))

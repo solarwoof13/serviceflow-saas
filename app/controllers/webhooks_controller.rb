@@ -80,25 +80,15 @@ class WebhooksController < ApplicationController
     if webhook_account_id.present?
       Rails.logger.info "📡 Webhook contains account ID: #{webhook_account_id}"
       account = JobberAccount.find_or_merge_by_jobber_id(webhook_account_id)
-
-       # 🔧 ADD DEBUG LOGGING:
-      puts "DEBUG: Webhook account ID: #{webhook_account_id}"
-      puts "DEBUG: Found account ID: #{account.id}"
-      puts "DEBUG: Account name: #{account.name}"
-      puts "DEBUG: Has profile: #{account.service_provider_profile.present?}"
-      puts "DEBUG: Profile details: #{account.service_provider_profile.inspect}"
       
       if account
         Rails.logger.info "✅ Found JobberAccount: #{account.name}"
-        puts "✅ Found JobberAccount: #{account.name}"
         return account
       else
         Rails.logger.warn "⚠️ No JobberAccount found for jobber_id: #{webhook_account_id}"
-        puts "⚠️ No JobberAccount found for jobber_id: #{webhook_account_id}"
       end
     else
       Rails.logger.info "📡 No account ID in webhook, will fetch from API..."
-      puts "📡 No account ID in webhook, will fetch from API..."
     end
     
     # Fallback: Try to get account ID from visit data via API
@@ -106,19 +96,16 @@ class WebhooksController < ApplicationController
     
     if visit_id
       Rails.logger.info "🔍 Fetching account ID from visit: #{visit_id}"
-      puts "🔍 Fetching account ID from visit: #{visit_id}"
       account = find_account_by_visit_id(visit_id)
       
       if account
         Rails.logger.info "✅ Found JobberAccount via API lookup: #{account.name}"
-        puts "✅ Found JobberAccount via API lookup: #{account.name}"
         return account
       end
     end
     
     # REMOVED DANGEROUS FALLBACK - No random account selection!
     Rails.logger.error "❌ No JobberAccount found for this webhook - rejecting request"
-    puts "❌ No JobberAccount found for this webhook - rejecting request"
     nil
   end
 
@@ -283,16 +270,11 @@ class WebhooksController < ApplicationController
   end
 
   def generate_and_send_enhanced_email(processed_data, jobber_account)
-    # 🔧 ADD DEBUG LOGGING:
-    puts "DEBUG: Generating email for account ID: #{jobber_account.id}"
-    puts "DEBUG: Has profile: #{jobber_account.service_provider_profile.present?}"
-    puts "DEBUG: Profile details: #{jobber_account.service_provider_profile.inspect}"
     
     # Get business profile
     business_profile = jobber_account.service_provider_profile
     
     unless business_profile
-      puts "DEBUG: No business profile found - failing"
       return { 
         success: false, 
         error: 'No business profile found - please complete signup first',
@@ -300,8 +282,6 @@ class WebhooksController < ApplicationController
       }
     end
     
-    puts "✅ Using business profile: #{business_profile.company_name}"
-    puts "✅ Service type: #{business_profile.main_service_type}"
     
     # Prepare visit data for new CustomerEmailService
     visit_data = {
@@ -325,8 +305,6 @@ class WebhooksController < ApplicationController
       }
     end
     
-    puts "✅ AI email generated successfully!"
-    puts "Subject: #{generation_result[:subject]}"
     
     # Send email using existing EmailService
     send_result = EmailService.send_customer_email(
@@ -337,9 +315,6 @@ class WebhooksController < ApplicationController
     )
     
     if send_result[:success]
-      puts "✅ Email sent successfully!"
-      puts "   Provider: #{send_result[:provider]}"
-      puts "   Email ID: #{send_result[:email_id]}"
       
       {
         success: true,
@@ -350,7 +325,6 @@ class WebhooksController < ApplicationController
         customer_email: processed_data[:customer_email]
       }
     else
-      puts "❌ Email sending failed: #{send_result[:error]}"
       
       {
         success: true, # AI generation succeeded
