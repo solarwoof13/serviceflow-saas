@@ -158,8 +158,36 @@ class CustomerEmailService
   private
   
   def build_visit_email_prompt(business_profile:, customer_name:, customer_location:, visit_notes:, service_type:, visit_date:, technician_name: nil, customer_signature: nil)
+    month = visit_date.strftime('%B')
     day = visit_date.strftime('%d')
     
+    # ADD THIS CODE BLOCK HERE:
+    # REPLACE PLACEHOLDERS WITH REAL DATA
+    owner_name = extract_owner_name(business_profile) || "Your Service Team"
+    company_name = business_profile&.company_name || "Our Company"
+    contact_info = extract_contact_info(business_profile) || ""
+    
+    # USE TECHNICIAN NAME INSTEAD OF OWNER FOR SIGNATURE
+    signature_name = technician_name || owner_name
+    
+    # Build the prompt with real data instead of placeholders
+    prompt = build_dynamic_system_prompt(service_type)
+    prompt += "\n\nIMPORTANT: Use these exact details in your signature:\n"
+    prompt += "Technician: #{signature_name}\n"
+    prompt += "Company: #{company_name}\n"
+    prompt += "Contact Info: #{contact_info}\n"
+    prompt += "DO NOT use placeholders like [Your Name] - use the actual names provided.\n\n"
+    
+    # Add customer signature if available
+    if customer_signature.present?
+      prompt += "Customer Signature: #{customer_signature}\n\n"
+    end
+    
+    # Dynamic service-type specific system prompt
+    system_prompt = build_dynamic_system_prompt(service_type)
+    
+    prompt = "#{system_prompt}\n\n"
+
     # Dynamic service-type specific system prompt
     system_prompt = build_dynamic_system_prompt(service_type)
     
