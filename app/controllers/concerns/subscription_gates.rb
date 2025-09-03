@@ -23,3 +23,4 @@ module SubscriptionGates
     end
     true
   end
+end
