@@ -1,59 +1,43 @@
-import React, { type FC } from 'react';
-import { dashboard } from '@wix/dashboard';
-import {
-  Button,
-  EmptyState,
-  Image,
-  Page,
-  TextButton,
-  WixDesignSystemProvider,
-} from '@wix/design-system';
-import '@wix/design-system/styles.global.css';
-import * as Icons from '@wix/wix-ui-icons-common';
-import wixLogo from './wix_logo.svg';
+// src/dashboard/pages/page.tsx
+import React, { useEffect } from 'react';
+import { createClient, WixClient } from '@wix/sdk';
 
-const Index: FC = () => {
-  return (
-    <WixDesignSystemProvider features={{ newColorsBranding: true }}>
-      <Page>
-        <Page.Header
-          title="Dashboard Page"
-          subtitle="Add management capabilities to your app."
-          actionsBar={
-            <Button
-              onClick={() => {
-                dashboard.showToast({
-                  message: 'Your first toast message!',
-                });
-              }}
-              prefixIcon={<Icons.GetStarted />}
-            >
-              Show a toast
-            </Button>
+const wixClient = createClient({ modules: { auth: WixClient } });
+
+const DashboardPage: React.FC = () => {
+  useEffect(() => {
+    syncUserWithRails();
+  }, []);
+
+  const syncUserWithRails = async () => {
+    try {
+      const userData = await wixClient.auth.getCurrentUser();
+      
+      const response = await fetch('http://localhost:3000/api/v1/wix/sync_user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          wix_user: {
+            wix_id: userData.id,
+            email: userData.email,
+            subscription_level: 'startup'
           }
-        />
-        <Page.Content>
-          <EmptyState
-            image={
-              <Image fit="contain" height="100px" src={wixLogo} transparent />
-            }
-            title="Start editing this dashboard page"
-            subtitle="Learn how to work with dashboard pages and how to add functionality to them using Wix APIs."
-            skin="page"
-          >
-            <TextButton
-              as="a"
-              href="https://dev.wix.com/docs/build-apps/develop-your-app/frameworks/wix-cli/supported-extensions/dashboard-extensions/dashboard-pages/add-dashboard-page-extensions-with-the-cli#add-dashboard-page-extensions-with-the-cli"
-              target="_blank"
-              prefixIcon={<Icons.ExternalLink />}
-            >
-              Dashboard pages documentation
-            </TextButton>
-          </EmptyState>
-        </Page.Content>
-      </Page>
-    </WixDesignSystemProvider>
+        })
+      });
+      
+      const result = await response.json();
+      console.log('User synced:', result);
+    } catch (error) {
+      console.error('Sync failed:', error);
+    }
+  };
+
+  return (
+    <div>
+      <h1>ServiceFlow Dashboard</h1>
+      {/* Add your dashboard content here */}
+    </div>
   );
 };
 
-export default Index;
+export default DashboardPage;
