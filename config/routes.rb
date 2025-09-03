@@ -33,8 +33,16 @@ Rails.application.routes.draw do
 
   namespace :api do
     namespace :v1 do
+      # Wix integration
       post 'wix/sync_user', to: 'wix#sync_user'
       get 'wix/subscription_status', to: 'wix#get_subscription_status'
+      
+      # Dashboard (ADD THESE)
+      get 'dashboard', to: 'dashboard#index'
+      get 'dashboard/cached_emails', to: 'dashboard#cached_emails'
+      get 'dashboard/visit_records', to: 'dashboard#visit_records'
+      get 'dashboard/smart_reviews', to: 'dashboard#smart_reviews'
+      get 'dashboard/google_reviews', to: 'dashboard#google_reviews'
     end
   end
   
