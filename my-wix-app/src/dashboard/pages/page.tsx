@@ -1,8 +1,10 @@
 // src/dashboard/pages/page.tsx
 import React, { useEffect } from 'react';
-import { createClient, WixClient } from '@wix/sdk';
+import { createClient } from '@wix/sdk';
 
-const wixClient = createClient({ modules: { auth: WixClient } });
+const wixClient = createClient({
+  modules: { auth: {} }
+});
 
 const DashboardPage: React.FC = () => {
   useEffect(() => {
@@ -11,6 +13,7 @@ const DashboardPage: React.FC = () => {
 
   const syncUserWithRails = async () => {
     try {
+      // Get current user from Wix context
       const userData = await wixClient.auth.getCurrentUser();
       
       const response = await fetch('http://localhost:3000/api/v1/wix/sync_user', {
