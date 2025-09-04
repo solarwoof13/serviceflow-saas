@@ -17,9 +17,10 @@
 #   end
 # end
 
-Rails.application.config.middleware.insert_before(0, Rack::Cors) do
+# config/initializers/cors.rb
+Rails.application.config.middleware.insert_before 0, Rack::Cors do
   allow do
-    origins ENV["CLIENT_APP_ORIGIN"] ||= "localhost"
-    resource "*", headers: :any, methods: :any, credentials: true
+    origins 'http://localhost:3000', 'http://localhost:5173', 'https://your-wix-domain.com', ENV["CLIENT_APP_ORIGIN"] ||= "localhost"
+    resource '*', headers: :any, methods: [:get, :post, :put, :patch, :delete, :options, :head], credentials: true
   end
 end
