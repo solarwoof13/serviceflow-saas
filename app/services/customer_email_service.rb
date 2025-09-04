@@ -1,4 +1,4 @@
-# Create file: app/services/customer_email_service.rb
+# app/services/customer_email_service.rb
 class CustomerEmailService
   include HTTParty
   
@@ -14,7 +14,11 @@ class CustomerEmailService
     business_profile = visit_data[:business_profile]
     customer_name = visit_data[:customer_name]
     customer_location = visit_data[:customer_location]
-    visit_notes = visit_data[:visit_notes]
+    
+    # UPDATED: Use separated notes
+    current_visit_notes = visit_data[:current_visit_notes] || visit_data[:visit_notes] || "Service completed successfully"
+    historical_notes = visit_data[:historical_notes] || ""
+    
     visit_date = visit_data[:visit_date] || Date.current
     service_type = business_profile&.main_service_type || 'General Service'
     
@@ -22,12 +26,13 @@ class CustomerEmailService
     technician_name = visit_data[:technician_name] || 'Your Service Team'
     customer_signature = visit_data[:customer_signature]
 
-    # Build intelligent prompt with ALL data
+    # Build intelligent prompt with separated notes
     prompt = build_visit_email_prompt(
       business_profile: business_profile,
       customer_name: customer_name,
       customer_location: customer_location,
-      visit_notes: visit_notes,
+      current_visit_notes: current_visit_notes,
+      historical_notes: historical_notes,
       service_type: service_type,
       visit_date: visit_date,
       technician_name: technician_name,
@@ -64,12 +69,16 @@ class CustomerEmailService
     # FIX: Load the actual business profile from the database
     business_profile = load_business_profile(processed_data)
     
-    # Convert processed_data to visit_data format
+    # Convert processed_data to visit_data format with separated notes
     visit_data = {
       business_profile: business_profile,
       customer_name: processed_data[:customer_name],
       customer_location: "#{processed_data[:property_address][:city]}, #{processed_data[:property_address][:province]}",
-      visit_notes: processed_data[:service_notes],
+      
+      # UPDATED: Use separated notes
+      current_visit_notes: processed_data[:current_visit_notes] || processed_data[:service_notes],
+      historical_notes: processed_data[:historical_notes] || "",
+      
       visit_date: Date.current,
       customer_email: processed_data[:customer_email],
       service_type: processed_data[:service_type] || business_profile&.main_service_type
@@ -157,11 +166,11 @@ class CustomerEmailService
   
   private
   
-  def build_visit_email_prompt(business_profile:, customer_name:, customer_location:, visit_notes:, service_type:, visit_date:, technician_name: nil, customer_signature: nil)
+  # UPDATED: build_visit_email_prompt method with separated notes
+  def build_visit_email_prompt(business_profile:, customer_name:, customer_location:, current_visit_notes:, historical_notes:, service_type:, visit_date:, technician_name: nil, customer_signature: nil)
     month = visit_date.strftime('%B')
     day = visit_date.strftime('%d')
     
-    # ADD THIS CODE BLOCK HERE:
     # REPLACE PLACEHOLDERS WITH REAL DATA
     owner_name = extract_owner_name(business_profile) || "Your Service Team"
     company_name = business_profile&.company_name || "Our Company"
@@ -170,24 +179,6 @@ class CustomerEmailService
     # USE TECHNICIAN NAME INSTEAD OF OWNER FOR SIGNATURE
     signature_name = technician_name || owner_name
     
-    # Build the prompt with real data instead of placeholders
-    prompt = build_dynamic_system_prompt(service_type)
-    prompt += "\n\nIMPORTANT: Use these exact details in your signature:\n"
-    prompt += "Technician: #{signature_name}\n"
-    prompt += "Company: #{company_name}\n"
-    prompt += "Contact Info: #{contact_info}\n"
-    prompt += "DO NOT use placeholders like [Your Name] - use the actual names provided.\n\n"
-    
-    # Add customer signature if available
-    if customer_signature.present?
-      prompt += "Customer Signature: #{customer_signature}\n\n"
-    end
-    
-    # Dynamic service-type specific system prompt
-    system_prompt = build_dynamic_system_prompt(service_type)
-    
-    prompt = "#{system_prompt}\n\n"
-
     # Dynamic service-type specific system prompt
     system_prompt = build_dynamic_system_prompt(service_type)
     
@@ -211,7 +202,7 @@ class CustomerEmailService
 
     # SIGNATURE INSTRUCTIONS - BE VERY SPECIFIC
     prompt += "\n\nSIGNATURE REQUIREMENTS (CRITICAL - FOLLOW EXACTLY):\n"
-    prompt += "SIGNATURE MUST BE FROM: #{technician_name || owner_name || 'Your Service Team'}\n"
+    prompt += "SIGNATURE MUST BE FROM: #{signature_name}\n"
     prompt += "COMPANY NAME: #{company_name}\n"
     prompt += "CONTACT INFO: #{contact_info}\n"
     prompt += "DO NOT use customer name in signature\n"
@@ -219,17 +210,33 @@ class CustomerEmailService
     prompt += "DO NOT sign as the customer - sign as the service provider\n"
     prompt += "Use the technician name provided above for the signature\n\n"
 
-    # Visit Details
+    # CRITICAL: Visit-specific vs Historical Notes
     prompt += "VISIT INFORMATION:\n"
     prompt += "Customer: #{customer_name}\n"
     prompt += "Location: #{customer_location}\n"
-    prompt += "Service Date: #{month} #{day}\n"
-    prompt += "Work Completed: #{visit_notes}\n\n"
+    prompt += "Service Date: #{month} #{day}\n\n"
+    
+    prompt += "CURRENT VISIT NOTES (PRIMARY - FOCUS ON THIS FOR TODAY'S SERVICE):\n"
+    prompt += "#{current_visit_notes}\n\n"
+    
+    if historical_notes.present?
+      prompt += "HISTORICAL CONTEXT (OPTIONAL - Use only if it helps explain today's service):\n"
+      prompt += "Previous service history: #{historical_notes}\n"
+      prompt += "IMPORTANT: The email should focus on TODAY'S work. Only mention historical context if it helps explain today's service or shows progression.\n\n"
+    end
     
     # Smart Instructions based on service type
     prompt += build_service_specific_instructions(service_type, business_profile, month, customer_location)
     
-    prompt += "\nGenerate a complete customer follow-up email that demonstrates expert #{service_type&.downcase || 'service'} knowledge."
+    prompt += "\n\nEMAIL FOCUS REQUIREMENTS (CRITICAL):\n"
+    prompt += "- PRIMARILY discuss today's service work and findings from the CURRENT VISIT NOTES\n"
+    prompt += "- Use historical notes ONLY for context if relevant (e.g., 'continuing our maintenance from last visit')\n"
+    prompt += "- Do NOT list every past service or create a service history summary\n"
+    prompt += "- Keep the customer informed about THIS specific visit's work and outcomes\n"
+    prompt += "- If historical context is mentioned, keep it brief and relevant to today's work\n"
+    prompt += "- Focus on what was accomplished TODAY and any immediate next steps\n"
+    
+    prompt += "\nGenerate a complete customer follow-up email that demonstrates expert #{service_type&.downcase || 'service'} knowledge while focusing on today's visit."
     
     prompt
   end
@@ -360,7 +367,7 @@ class CustomerEmailService
         messages: [
           {
             role: 'system',
-            content: 'You are an expert contractor or service provider writing professional follow-up emails. Use your knowledge of seasons, weather, and regional conditions to provide valuable, location-specific advice that is relavent to the type of service provided. Always include a clear subject line at the start.'
+            content: 'You are an expert contractor or service provider writing professional follow-up emails. Use your knowledge of seasons, weather, and regional conditions to provide valuable, location-specific advice that is relevant to the type of service provided. Always include a clear subject line at the start. Focus primarily on the current visit while using historical context only when it adds value.'
           },
           {
             role: 'user',
@@ -400,7 +407,7 @@ class CustomerEmailService
   def generate_fallback_email(visit_data)
     business_profile = visit_data[:business_profile]
     customer_name = visit_data[:customer_name]
-    visit_notes = visit_data[:visit_notes]
+    current_visit_notes = visit_data[:current_visit_notes] || visit_data[:visit_notes] || "Service completed successfully"
     visit_date = visit_data[:visit_date]&.strftime('%B %d, %Y') || Date.current.strftime('%B %d, %Y')
     
     # Extract business info with fallbacks
@@ -414,7 +421,7 @@ class CustomerEmailService
     "Dear #{customer_name},\n\n" +
     "Thank you for choosing #{business_name} for your #{service_type.downcase} needs. " +
     "We completed your service on #{visit_date}.\n\n" +
-    "Work completed:\n#{visit_notes}\n\n" +
+    "Work completed:\n#{current_visit_notes}\n\n" +
     "If you have any questions about the work performed or need additional service, " +
     "please don't hesitate to contact us.\n\n" +
     "#{signature}"

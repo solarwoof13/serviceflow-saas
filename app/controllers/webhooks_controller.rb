@@ -212,9 +212,20 @@ class WebhooksController < ApplicationController
     address_data = property_data['address'] || {}
     notes_data = jobber_data['notes']&.dig('nodes') || []
     line_items = job_data['lineItems']&.dig('nodes') || []
+    
     # ADD TECHNICIAN INFO
     technician_data = jobber_data.dig('assignedUsers', 'nodes', 0) || {}
-    technician_name = technician_data['name'] || 'Your Service Team'
+    technician_name = if technician_data['name'].present?
+                        # Extract first and last name if full name object
+                        if technician_data['name'].is_a?(Hash)
+                          "#{technician_data['name']['firstName']} #{technician_data['name']['lastName']}".strip
+                        else
+                          technician_data['name']
+                        end
+                      else
+                        'Your Service Team'
+                      end
+    
     # ADD SIGNATURE DATA (if available)
     signature_data = jobber_data.dig('signature') || {}
     customer_signature = signature_data['signature'] || nil
@@ -222,39 +233,73 @@ class WebhooksController < ApplicationController
     # Get visit completion date for filtering
     visit_completed_at = jobber_data.dig('completedAt') || jobber_data.dig('endAt')
     
-    # FILTER NOTES: Only include notes from within 2 hours of visit completion
+    # ENHANCED NOTE FILTERING: Separate current visit notes from historical notes
+    current_visit_notes = []
+    historical_notes = []
+    
     if visit_completed_at
       visit_datetime = DateTime.parse(visit_completed_at) rescue nil
       if visit_datetime
-        # Filter notes to within 2 hours of visit completion
-        relevant_notes = notes_data.select do |note|
+        Rails.logger.info "🕐 Visit completed at: #{visit_datetime}"
+        puts "DEBUG: Visit completed at: #{visit_datetime}"
+        
+        # Separate notes based on proximity to visit completion time
+        notes_data.each do |note|
           note_datetime = DateTime.parse(note['createdAt']) rescue nil
-          if note_datetime
-            time_diff = (note_datetime - visit_datetime).abs
-            time_diff <= 2.hours  # More precise: 2 hours instead of 1 day
+          next unless note_datetime
+          
+          time_diff_hours = ((note_datetime - visit_datetime).abs * 24).round(2)
+          note_message = note['message'] || note['content'] || ""
+          
+          Rails.logger.info "📝 Note from #{note_datetime} (#{time_diff_hours}h from visit): #{note_message.first(50)}..."
+          puts "DEBUG: Note time diff: #{time_diff_hours} hours - #{note_message.first(50)}..."
+          
+          # Notes within 3 hours of visit completion are "current visit"
+          if time_diff_hours <= 3.0
+            current_visit_notes << {
+              message: note_message,
+              created_at: note_datetime,
+              time_diff: time_diff_hours
+            }
+            Rails.logger.info "✅ CURRENT visit note (#{time_diff_hours}h)"
+            puts "DEBUG: ✅ CURRENT visit note"
           else
-            false  # Exclude notes without valid dates
+            historical_notes << {
+              message: note_message,
+              created_at: note_datetime,
+              time_diff: time_diff_hours
+            }
+            Rails.logger.info "📚 Historical note (#{time_diff_hours}h)"
+            puts "DEBUG: 📚 Historical note"
           end
         end
-        
-        original_count = jobber_data['notes']&.dig('nodes')&.length || 0
-        filtered_count = relevant_notes.length
-        
-        Rails.logger.info "📝 Note filtering: #{filtered_count} relevant notes from #{original_count} total"
-        puts "DEBUG: Filtered #{filtered_count} relevant notes from #{original_count} total"
-        
-        notes_data = relevant_notes
       else
         Rails.logger.warn "⚠️ Could not parse visit completion date: #{visit_completed_at}"
         puts "DEBUG: Could not parse visit completion date"
+        # If we can't parse visit date, treat all notes as current (safer)
+        notes_data.each do |note|
+          current_visit_notes << {
+            message: note['message'] || note['content'] || "",
+            created_at: nil,
+            time_diff: 0
+          }
+        end
+      end
+    else
+      Rails.logger.info "📝 No visit completion time - using all notes as current visit"
+      puts "DEBUG: No visit completion time - using all notes as current"
+      # No completion time, treat all notes as current
+      notes_data.each do |note|
+        current_visit_notes << {
+          message: note['message'] || note['content'] || "",
+          created_at: nil,
+          time_diff: 0
+        }
       end
     end
-
-    # Add this after filtering to see what notes are included
-    if notes_data.any?
-      Rails.logger.info "📝 First filtered note: #{notes_data.first['message']&.first(100)}..."
-      Rails.logger.info "📝 Last filtered note: #{notes_data.last['message']&.first(100)}..."
-    end
+    
+    Rails.logger.info "📊 Note filtering results: #{current_visit_notes.length} current, #{historical_notes.length} historical"
+    puts "DEBUG: Final count - Current: #{current_visit_notes.length}, Historical: #{historical_notes.length}"
     
     # Extract customer info (unchanged)
     company_name = client_data['companyName']
@@ -262,57 +307,73 @@ class WebhooksController < ApplicationController
     last_name = client_data['lastName'] || ""
     
     customer_name = if company_name.present?
-                    company_name
-                  else
-                    "#{first_name} #{last_name}".strip
-                  end
+                      company_name
+                    else
+                      "#{first_name} #{last_name}".strip
+                    end
     
     # Extract email (unchanged)
     emails = client_data['emails'] || []
     customer_email = emails.find { |email| email['primary'] }&.dig('address') || 
-                    emails.first&.dig('address') || 
-                    "customer@example.com"
+                     emails.first&.dig('address') || 
+                     "customer@example.com"
     
     # Extract location (unchanged)
     customer_location = "#{address_data['city']}, #{address_data['province']}" if address_data['city']
     customer_location ||= "Unknown location"
     
-    # ADD TECHNICIAN INFO
-    technician_data = jobber_data.dig('assignedUsers', 'nodes', 0) || {}
-    technician_name = technician_data['name'] || 'Your Service Team'
+    # Format CURRENT VISIT notes (primary content for email)
+    current_notes_text = current_visit_notes.map { |note| note[:message] }.join('. ').strip
     
-    # ADD SIGNATURE DATA (if available)
-    signature_data = jobber_data.dig('signature') || {}
-    customer_signature = signature_data['signature'] || nil
+    # Format HISTORICAL notes (context only)
+    historical_notes_text = historical_notes.map do |note|
+      date_str = note[:created_at] ? note[:created_at].strftime('%m/%d/%Y') : 'Previous visit'
+      "#{note[:message]} (#{date_str})"
+    end.join('. ').strip
     
-    # Extract and combine ONLY RELEVANT notes
-    visit_notes = []
-    
-    # Add visit notes (already filtered above)
-    if notes_data.any?
-      note_content = notes_data.map { |note| note['message'] || note['content'] }.join('. ')
-      visit_notes << note_content if note_content.present?
+    # Add line items to current visit context if no notes
+    if current_notes_text.blank? && line_items.any?
+      line_item_content = line_items.map { |item| 
+        description = item['description'].present? ? ": #{item['description']}" : ""
+        "#{item['name']}#{description}"
+      }.join(', ')
+      current_notes_text = "Completed service: #{line_item_content}"
     end
     
-    # Add line items as context (optional - can remove if too much)
-    if line_items.any?
-      line_item_content = line_items.map { |item| "#{item['name']}: #{item['description']}" }.join('. ')
-      visit_notes << line_item_content if line_item_content.present?
-    end
+    # Ensure we have some content
+    current_notes_text = "Service visit completed successfully" if current_notes_text.blank?
     
-    combined_notes = visit_notes.join('. ').strip
-    combined_notes = "Service visit completed successfully" if combined_notes.blank?
+    Rails.logger.info "📄 Current visit content: #{current_notes_text.first(100)}..."
+    Rails.logger.info "📚 Historical content: #{historical_notes_text.first(100)}..." if historical_notes_text.present?
     
-    # RETURN ENHANCED DATA with technician and signature
+    puts "DEBUG: Current notes: #{current_notes_text.first(100)}..."
+    puts "DEBUG: Historical notes: #{historical_notes_text.first(100)}..." if historical_notes_text.present?
+    
+    # RETURN ENHANCED DATA with separated notes
     {
       job_id: job_data['jobNumber'] || "SF-#{rand(1000..9999)}",
       customer_name: customer_name,
       customer_email: customer_email,
       customer_location: customer_location,
-      visit_notes: combined_notes,
-      visit_date: visit_completed_at || Date.current,  # Use actual visit date
-      technician_name: technician_name,  # NEW
-      customer_signature: customer_signature  # NEW
+      
+      # SEPARATED NOTES - Primary change for email focus
+      current_visit_notes: current_notes_text,
+      historical_notes: historical_notes_text,
+      
+      # LEGACY - for backwards compatibility
+      visit_notes: current_notes_text,
+      
+      visit_date: visit_completed_at || Date.current,
+      technician_name: technician_name,
+      customer_signature: customer_signature,
+      
+      # METADATA for debugging
+      notes_metadata: {
+        total_notes: notes_data.length,
+        current_count: current_visit_notes.length,
+        historical_count: historical_notes.length,
+        visit_completion_time: visit_completed_at
+      }
     }
   end
 
@@ -328,12 +389,26 @@ class WebhooksController < ApplicationController
                     "Completed service visit. All work performed according to specifications. System checked and functioning properly."
                   end
     
+    # PLACE THE FIX HERE - Replace the hardcoded email:
+    customer_email = if Rails.env.development?
+                      "solarharvey79@gmail.com" # Test email for development
+                    else
+                      "noreply@serviceflow.com" # Safe fallback for production
+                    end
+    
     {
       job_id: "SF-#{rand(1000..9999)}",
       customer_name: "Test Customer",
-      customer_email: "solarharvey79@gmail.com", # Your test email
+      customer_email: customer_email, # Use the conditional email here
       customer_location: "Minneapolis, MN",
+      
+      # SEPARATED NOTES for consistency
+      current_visit_notes: test_notes,
+      historical_notes: "",
+      
+      # LEGACY
       visit_notes: test_notes,
+      
       visit_date: Date.current
     }
   end
@@ -351,17 +426,23 @@ class WebhooksController < ApplicationController
       }
     end
     
-    
-    # Prepare visit data with NEW fields
+    # Prepare visit data with SEPARATED NOTES
     visit_data = {
       business_profile: business_profile,
       customer_name: processed_data[:customer_name],
       customer_email: processed_data[:customer_email],
       customer_location: processed_data[:customer_location],
-      visit_notes: processed_data[:visit_notes],
+      
+      # UPDATED: Use separated notes
+      current_visit_notes: processed_data[:current_visit_notes],
+      historical_notes: processed_data[:historical_notes],
+      
+      # LEGACY: Keep for backwards compatibility  
+      visit_notes: processed_data[:visit_notes] || processed_data[:current_visit_notes],
+      
       visit_date: processed_data[:visit_date],
-      technician_name: processed_data[:technician_name],  # NEW
-      customer_signature: processed_data[:customer_signature]  # NEW
+      technician_name: processed_data[:technician_name],
+      customer_signature: processed_data[:customer_signature]
     }
     
     # Generate AI email using new service
@@ -376,7 +457,6 @@ class WebhooksController < ApplicationController
       }
     end
     
-    
     # Send email using existing EmailService
     send_result = EmailService.send_customer_email(
       to: processed_data[:customer_email],
@@ -386,7 +466,6 @@ class WebhooksController < ApplicationController
     )
     
     if send_result[:success]
-      
       {
         success: true,
         email_sent: true,
@@ -396,7 +475,6 @@ class WebhooksController < ApplicationController
         customer_email: processed_data[:customer_email]
       }
     else
-      
       {
         success: true, # AI generation succeeded
         email_sent: false,
