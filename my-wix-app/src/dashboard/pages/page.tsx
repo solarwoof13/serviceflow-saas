@@ -18,14 +18,19 @@ const DashboardPage: React.FC = () => {
 
   const fetchUser = async () => {
     try {
-      // Use the correct API for current user
-      const currentUser = await wixClient.auth.getCurrentUser();
+      // Try using the users module instead
+      const currentUser = await wixClient.users.getCurrentUser();
       setUser(currentUser);
       
       // Then sync with Rails
       await syncUserWithRails(currentUser);
     } catch (error) {
       console.error('User fetch failed:', error);
+      // Fallback: Use window.wix for user data if available
+      if (window.wix && window.wix.currentUser) {
+        setUser(window.wix.currentUser);
+        await syncUserWithRails(window.wix.currentUser);
+      }
     }
   };
 
