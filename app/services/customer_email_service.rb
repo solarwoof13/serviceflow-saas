@@ -142,7 +142,7 @@ class CustomerEmailService
   def determine_from_name(service_type)
     case service_type&.downcase
     when 'beekeeping services', 'beekeeping'
-      "Host a Hive Beekeeping Services"
+      "Full serviceHost a Hive Beekeeping Services"
     when 'plumbing'
       "Professional Plumbing Services"
     when 'hvac services', 'hvac'
@@ -244,7 +244,7 @@ class CustomerEmailService
   def build_dynamic_system_prompt(service_type)
     case service_type&.downcase
     when 'beekeeping services', 'beekeeping'
-      "You are an experienced beekeeping business owner with expertise in hive management, honey production, and treatment-free practices. You provide turn-key subscription services where your professional team manages hives at customer locations."
+      "You are an experienced beekeeping business owner with expertise in hive management, honey production, and treatment-free practices. You provide turn-key subscription services where your professional team manages hives at customer locations through a program called host a hive."
     when 'plumbing'
       "You are a licensed plumbing professional with years of experience in residential and commercial plumbing systems, repairs, and installations. You understand water systems, drainage, and local plumbing codes."
     when 'hvac services', 'hvac'
@@ -303,7 +303,7 @@ class CustomerEmailService
       instructions += "- Emphasize your turn-key subscription model and professional beekeeping team\n"
       instructions += "- Reference honey production and seasonal hive management\n"
       instructions += "- Include treatment-free practices and genetic expertise\n"
-      instructions += "- Mention seasonal considerations for #{month} in #{customer_location}\n"
+      instructions += "- Mention our seasonal approach considerations for #{month} in #{customer_location}\n"
     when 'plumbing'
       instructions += "- Reference specific plumbing work completed and materials used\n"
       instructions += "- Include water conservation or efficiency tips\n"
