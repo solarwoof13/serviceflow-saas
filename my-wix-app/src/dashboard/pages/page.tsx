@@ -1,21 +1,36 @@
 // src/dashboard/pages/page.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createClient } from '@wix/sdk';
 
 const wixClient = createClient({
-  modules: { auth: {} }
+  modules: { 
+    auth: {},
+    users: {}
+  }
 });
 
 const DashboardPage: React.FC = () => {
+  const [user, setUser] = useState<any>(null);
+
   useEffect(() => {
-    syncUserWithRails();
+    fetchUser();
   }, []);
 
-  const syncUserWithRails = async () => {
+  const fetchUser = async () => {
     try {
-      // Get current user from Wix context
-      const userData = await wixClient.auth.getCurrentUser();
+      // Use the correct API for current user
+      const currentUser = await wixClient.auth.getCurrentUser();
+      setUser(currentUser);
       
+      // Then sync with Rails
+      await syncUserWithRails(currentUser);
+    } catch (error) {
+      console.error('User fetch failed:', error);
+    }
+  };
+
+  const syncUserWithRails = async (userData: any) => {
+    try {
       const response = await fetch('http://localhost:3000/api/v1/wix/sync_user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -38,7 +53,7 @@ const DashboardPage: React.FC = () => {
   return (
     <div>
       <h1>ServiceFlow Dashboard</h1>
-      {/* Add your dashboard content here */}
+      {user && <p>Welcome, {user.email}</p>}
     </div>
   );
 };
