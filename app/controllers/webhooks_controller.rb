@@ -215,13 +215,16 @@ class WebhooksController < ApplicationController
     # GET VISIT COMPLETION TIME (or use current time)
     visit_completed_at = jobber_data['completedAt'] || jobber_data['endAt']
     reference_time = if visit_completed_at
-                       DateTime.parse(visit_completed_at)
-                     else
-                       DateTime.current # Use current time if no completion time
-                     end
+                      DateTime.parse(visit_completed_at)
+                    else
+                      DateTime.current
+                    end
     
-    Rails.logger.info "🕐 Using reference time for filtering: #{reference_time}"
-    puts "DEBUG: Reference time: #{reference_time}"
+    # GET THE VISIT DATE (just the date, not time)
+    visit_date = reference_time.to_date
+    
+    Rails.logger.info "🕐 Using visit date for filtering: #{visit_date}"
+    puts "DEBUG: Visit date: #{visit_date}"
     
     # ADD TECHNICIAN INFO
     technician_data = jobber_data.dig('assignedUsers', 'nodes', 0) || {}
@@ -235,44 +238,45 @@ class WebhooksController < ApplicationController
                         'Your Service Team'
                       end
     
-    # GET ALL NOTES (from visit.notes - same as job.notes)
+    # GET ALL NOTES
     all_notes = jobber_data.dig('notes', 'nodes') || []
     
     Rails.logger.info "📝 Total notes found: #{all_notes.length}"
     puts "DEBUG: Total notes: #{all_notes.length}"
     
-    # SIMPLE 24-HOUR FILTER
-    recent_notes = []
-    old_notes = []
+    # SAME-DAY FILTER (work day approach)
+    same_day_notes = []
+    older_notes = []
     
     all_notes.each do |note|
       begin
         note_datetime = DateTime.parse(note['createdAt'])
+        note_date = note_datetime.to_date
         note_message = note['message'] || note['content'] || ""
         
-        # Calculate hours difference
-        hours_diff = ((reference_time - note_datetime).abs * 24).round(2)
+        # Calculate days difference
+        days_diff = (visit_date - note_date).to_i.abs
         
-        Rails.logger.info "📝 Note from #{note_datetime} (#{hours_diff}h ago): #{note_message.first(50)}..."
-        puts "DEBUG: Note age: #{hours_diff} hours - #{note_message.first(50)}..."
+        Rails.logger.info "📝 Note from #{note_date} (#{days_diff} days from visit): #{note_message.first(50)}..."
+        puts "DEBUG: Note date: #{note_date}, Days difference: #{days_diff}"
         
-        # SIMPLE FILTER: Within 24 hours = recent
-        if hours_diff <= 24.0
-          recent_notes << {
+        # WORK DAY FILTER: Same day = current work day
+        if days_diff == 0
+          same_day_notes << {
             message: note_message,
             created_at: note_datetime,
-            hours_ago: hours_diff
+            days_diff: days_diff
           }
-          Rails.logger.info "✅ RECENT note (#{hours_diff}h ago) - INCLUDED"
-          puts "DEBUG: ✅ INCLUDED - #{hours_diff}h ago"
+          Rails.logger.info "✅ SAME DAY note (work day) - INCLUDED"
+          puts "DEBUG: ✅ INCLUDED - same work day"
         else
-          old_notes << {
+          older_notes << {
             message: note_message,
             created_at: note_datetime,
-            hours_ago: hours_diff
+            days_diff: days_diff
           }
-          Rails.logger.info "📚 OLD note (#{hours_diff}h ago) - EXCLUDED"
-          puts "DEBUG: 📚 EXCLUDED - #{hours_diff}h ago"
+          Rails.logger.info "📚 DIFFERENT DAY note (#{days_diff} days ago) - EXCLUDED"
+          puts "DEBUG: 📚 EXCLUDED - #{days_diff} days ago"
         end
         
       rescue => e
@@ -282,8 +286,8 @@ class WebhooksController < ApplicationController
       end
     end
     
-    Rails.logger.info "📊 24-hour filtering results: #{recent_notes.length} recent notes, #{old_notes.length} old notes"
-    puts "DEBUG: Final count - Recent: #{recent_notes.length}, Old: #{old_notes.length}"
+    Rails.logger.info "📊 Same-day filtering results: #{same_day_notes.length} same-day notes, #{older_notes.length} older notes"
+    puts "DEBUG: Final count - Same Day: #{same_day_notes.length}, Older: #{older_notes.length}"
     
     # Extract customer info (unchanged)
     company_name = client_data['companyName']
@@ -299,17 +303,17 @@ class WebhooksController < ApplicationController
     # Extract email (unchanged)
     emails = client_data['emails'] || []
     customer_email = emails.find { |email| email['primary'] }&.dig('address') || 
-                     emails.first&.dig('address') || 
-                     "customer@example.com"
+                    emails.first&.dig('address') || 
+                    "customer@example.com"
     
     # Extract location (unchanged)
     customer_location = "#{address_data['city']}, #{address_data['province']}" if address_data['city']
     customer_location ||= "Unknown location"
     
-    # Format RECENT notes (last 24 hours)
-    current_notes_text = recent_notes.map { |note| note[:message] }.join('. ').strip
+    # Format SAME DAY notes (current work day)
+    current_notes_text = same_day_notes.map { |note| note[:message] }.join('. ').strip
     
-    # If no recent notes, use line items or fallback
+    # If no same-day notes, use line items or fallback
     if current_notes_text.blank?
       if line_items.any?
         line_item_content = line_items.map do |item| 
@@ -321,31 +325,30 @@ class WebhooksController < ApplicationController
         current_notes_text = "Completed scheduled service visit successfully"
       end
       
-      Rails.logger.info "📝 No recent notes found - using fallback: #{current_notes_text}"
+      Rails.logger.info "📝 No same-day notes found - using fallback: #{current_notes_text}"
       puts "DEBUG: Using fallback content"
     end
     
-    # Format historical notes (older than 24 hours) - limit to last 7 days for context
-    recent_old_notes = old_notes.select { |note| note[:hours_ago] <= (7 * 24) } # Last 7 days only
-    historical_notes_text = recent_old_notes.map do |note|
-      days_ago = (note[:hours_ago] / 24).round
-      "#{note[:message]} (#{days_ago} days ago)"
+    # Format historical notes (older than same day) - limit to last 7 days for context
+    recent_older_notes = older_notes.select { |note| note[:days_diff] <= 7 } # Last 7 days only
+    historical_notes_text = recent_older_notes.map do |note|
+      "#{note[:message]} (#{note[:days_diff]} days ago)"
     end.join('. ').strip
     
-    Rails.logger.info "📄 Recent notes (24h): #{current_notes_text.first(100)}..."
+    Rails.logger.info "📄 Same-day notes: #{current_notes_text.first(100)}..."
     Rails.logger.info "📚 Historical context (7d): #{historical_notes_text.first(100)}..." if historical_notes_text.present?
     
-    puts "DEBUG: Final recent notes: #{current_notes_text.first(100)}..."
+    puts "DEBUG: Final same-day notes: #{current_notes_text.first(100)}..."
     puts "DEBUG: Final historical notes: #{historical_notes_text.first(100)}..." if historical_notes_text.present?
     
-    # RETURN DATA with 24-hour filtered notes
+    # RETURN DATA with same-day filtered notes
     {
       job_id: job_data['jobNumber'] || "SF-#{rand(1000..9999)}",
       customer_name: customer_name,
       customer_email: customer_email,
       customer_location: customer_location,
       
-      # 24-HOUR FILTERED NOTES
+      # SAME-DAY FILTERED NOTES
       current_visit_notes: current_notes_text,
       historical_notes: historical_notes_text,
       
@@ -359,10 +362,10 @@ class WebhooksController < ApplicationController
       # METADATA for debugging
       notes_metadata: {
         total_notes: all_notes.length,
-        recent_notes_24h: recent_notes.length,
-        old_notes: old_notes.length,
-        reference_time: reference_time.iso8601,
-        filtering_method: "24_hour_simple"
+        same_day_notes: same_day_notes.length,
+        older_notes: older_notes.length,
+        visit_date: visit_date.iso8601,
+        filtering_method: "same_day_work_day"
       }
     }
   end
