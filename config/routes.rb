@@ -50,6 +50,7 @@ Rails.application.routes.draw do
   # Health check and monitoring
   get "/heartbeat", to: "application#heartbeat"
   get "/health", to: "application#heartbeat"
+  get '/debug/database', to: 'application#debug_database'
   
   # Development and testing routes (only in development)
   if Rails.env.development?

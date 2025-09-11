@@ -7,6 +7,23 @@ class ApplicationController < ActionController::API
     head(:ok)
   end
 
+  def debug_database
+    render json: {
+      environment: Rails.env,
+      email_count: EmailDeduplicationLog.count,
+      recent_emails: EmailDeduplicationLog.order(created_at: :desc).limit(10).map do |log|
+        {
+          created_at: log.created_at,
+          customer_email: log.customer_email,
+          email_status: log.email_status,
+          webhook_topic: log.webhook_topic
+        }
+      end,
+      account_name: JobberAccount.first&.name,
+      company_name: JobberAccount.first&.service_provider_profile&.company_name
+    }
+  end
+
   private
 
   def jobber_account_id
