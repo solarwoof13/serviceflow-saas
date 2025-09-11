@@ -1,4 +1,6 @@
 class ServiceProviderProfile < ApplicationRecord
+  # Add Wix user relationship
+  belongs_to :wix_user, optional: true
   # Connect to Jobber account
   belongs_to :jobber_account
   
@@ -10,6 +12,11 @@ class ServiceProviderProfile < ApplicationRecord
     message: "must be a valid tone"
   }
   
+  # Add method to get associated Wix user
+  def wix_member
+    wix_user
+  end
+
   # Helper methods for service areas
   def serves_location?(latitude, longitude)
     return false if service_areas.blank?
@@ -46,11 +53,13 @@ class ServiceProviderProfile < ApplicationRecord
     seasonal_services(season)
   end
   
+  # Update the setup_complete? method
   def setup_complete?
     profile_completed && 
     company_name.present? && 
     service_details.present? &&
-    unique_selling_points.present?
+    unique_selling_points.present? &&
+    (wix_user&.subscription_active? || jobber_account&.access_token.present?)
   end
 
   def to_business_profile_hash

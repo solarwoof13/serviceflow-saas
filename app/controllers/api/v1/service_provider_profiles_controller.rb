@@ -81,7 +81,8 @@ class Api::V1::ServiceProviderProfilesController < ApplicationController
       :main_service_type, :service_details, :unique_selling_points,
       :local_expertise, :spring_services, :summer_services, 
       :fall_services, :winter_services, :email_tone, 
-      :profile_completed
+      :profile_completed,
+      service_areas: []
     )
   end
 end

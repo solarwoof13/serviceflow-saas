@@ -33,16 +33,17 @@ Rails.application.routes.draw do
 
   namespace :api do
     namespace :v1 do
-      # Wix integration
-      post 'wix/sync_user', to: 'wix#sync_user'
-      get 'wix/subscription_status', to: 'wix#get_subscription_status'
+      # Wix integration endpoints
+      get 'wix/dashboard_data', to: 'wix_integration#dashboard_data'
+      get 'wix/analytics', to: 'wix_integration#analytics'
+      get 'wix/jobber_details', to: 'wix_integration#jobber_details'
+      post 'wix/reconnect_jobber', to: 'wix_integration#reconnect_jobber'
+      get 'wix/service_insights', to: 'wix_integration#service_insights'
+      post 'wix/create_user', to: 'wix_integration#create_user'
+      post 'wix/authenticate', to: 'wix_integration#authenticate'
       
-      # Dashboard (ADD THESE)
-      get 'dashboard', to: 'dashboard#index'
-      get 'dashboard/cached_emails', to: 'dashboard#cached_emails'
-      get 'dashboard/visit_records', to: 'dashboard#visit_records'
-      get 'dashboard/smart_reviews', to: 'dashboard#smart_reviews'
-      get 'dashboard/google_reviews', to: 'dashboard#google_reviews'
+      # Webhook endpoint for Wix
+      post 'wix/webhook', to: 'wix_integration#webhook'
     end
   end
   
