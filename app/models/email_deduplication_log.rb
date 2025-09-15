@@ -1,16 +1,17 @@
-# app/models/email_deduplication_log.rb
 class EmailDeduplicationLog < ApplicationRecord
-  validates :visit_id, presence: true
+  belongs_to :jobber_account, optional: true  # Add association
+  
+  validates :job_id, presence: true  # Change from visit_id
   validates :customer_email, presence: true
   
   scope :for_visit, ->(visit_id) { where(visit_id: visit_id) }
-  scope :sent_emails, -> { where(email_status: 'sent') }
-  scope :recent, -> { where('created_at > ?', 24.hours.ago) }
+  scope :sent, -> { where(email_status: 'sent') }  # Rename from sent_emails
+  scope :recent, -> { where('created_at > ?', 24.hours.ago) }  # Keep 24 hours
   
   def self.already_sent_for_visit?(visit_id, customer_email)
-    sent_emails
+    sent
       .where(visit_id: visit_id, customer_email: customer_email)
-      .where('created_at > ?', 24.hours.ago) # Only check last 24 hours
+      .where('created_at > ?', 24.hours.ago)
       .exists?
   end
   

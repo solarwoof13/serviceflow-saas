@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_09_03_205443) do
+ActiveRecord::Schema[7.2].define(version: 2025_09_15_161405) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -38,6 +38,12 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_03_205443) do
     t.datetime "sent_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "recipient_email"
+    t.string "status"
+    t.bigint "jobber_account_id"
+    t.bigint "visit_id"
+    t.index ["jobber_account_id"], name: "index_emails_on_jobber_account_id"
+    t.index ["visit_id"], name: "index_emails_on_visit_id"
     t.index ["wix_user_id"], name: "index_emails_on_wix_user_id"
   end
 
@@ -113,7 +119,27 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_03_205443) do
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "jobber_visit_id"
+    t.datetime "data_expires_at"
+    t.bigint "jobber_account_id"
+    t.index ["jobber_account_id"], name: "index_visits_on_jobber_account_id"
     t.index ["wix_user_id"], name: "index_visits_on_wix_user_id"
+  end
+
+  create_table "webhook_events", force: :cascade do |t|
+    t.string "event_type", null: false
+    t.string "jobber_item_id"
+    t.jsonb "payload", default: {}
+    t.string "processing_status", default: "pending"
+    t.text "error_message"
+    t.bigint "jobber_account_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_webhook_events_on_created_at"
+    t.index ["event_type", "created_at"], name: "index_webhook_events_on_event_type_and_created_at"
+    t.index ["jobber_account_id"], name: "index_webhook_events_on_jobber_account_id"
+    t.index ["jobber_item_id"], name: "index_webhook_events_on_jobber_item_id"
+    t.index ["processing_status"], name: "index_webhook_events_on_processing_status"
   end
 
   create_table "wix_users", force: :cascade do |t|
@@ -131,4 +157,5 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_03_205443) do
   add_foreign_key "subscription_features", "subscriptions"
   add_foreign_key "subscriptions", "wix_users"
   add_foreign_key "visits", "wix_users"
+  add_foreign_key "webhook_events", "jobber_accounts"
 end
