@@ -1,20 +1,22 @@
-class CreateEmailDeduplicationLogs < ActiveRecord::Migration[7.0]
+class CreateEmailDeduplicationLogs < ActiveRecord::Migration[7.2]
   def change
     create_table :email_deduplication_logs do |t|
-      t.string :visit_id, null: false, index: true
-      t.string :job_id, index: true
+      t.bigint :visit_id
+      t.string :job_id, null: false
       t.string :customer_email, null: false
       t.string :webhook_topic
-      t.json :webhook_data
-      t.string :email_status # 'sent', 'duplicate_blocked', 'failed'
-      t.string :block_reason # Why it was blocked
-      t.datetime :email_sent_at
+      t.string :email_status
+      t.string :email_provider
+      t.string :email_id
+      t.text :email_subject
+      t.text :email_content
+      t.datetime :sent_at
+      t.references :jobber_account, foreign_key: true
       t.timestamps
+      
+      t.index [:job_id, :customer_email], unique: true, name: 'idx_email_dedup_job_customer'
+      t.index :visit_id
+      t.index :sent_at
     end
-    
-    # Ensure we can quickly check for duplicates
-    add_index :email_deduplication_logs, [:visit_id, :customer_email], 
-              name: 'idx_dedup_visit_customer', unique: false
-    add_index :email_deduplication_logs, :created_at
   end
 end
