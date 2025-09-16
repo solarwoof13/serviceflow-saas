@@ -89,7 +89,12 @@ test:
 # for a full overview on how database connection configuration can be specified.
 #
 production:
-  adapter: postgresql
-  encoding: unicode
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  <<: *default
   url: <%= ENV['DATABASE_URL'] %>
+  sslmode: require
+  # Add these additional SSL settings for Render
+  ssl: true
+  prepared_statements: false
+  advisory_locks: false
+  variables:
+    statement_timeout: '60s'
