@@ -1,11 +1,12 @@
 class Email < ApplicationRecord
-  belongs_to :wix_user
-  belongs_to :jobber_account, optional: true  # Add this
+  belongs_to :wix_user, optional: true
+  belongs_to :jobber_account, optional: true
+  belongs_to :visit, optional: true
   
-  # Add validations only if columns exist
-  validates :recipient_email, presence: true, if: -> { has_attribute?(:recipient_email) }
+  validates :recipient_email, presence: true
   
-  scope :sent, -> { where(status: 'sent') }, if: -> { has_attribute?(:status) }
-  scope :failed, -> { where(status: 'failed') }, if: -> { has_attribute?(:status) }
-  scope :recent, -> { where('sent_at > ?', 7.days.ago) }, if: -> { has_attribute?(:sent_at) }
+  # Fix these scopes - only 2 arguments allowed
+  scope :sent, -> { where(status: 'sent') }
+  scope :failed, -> { where(status: 'failed') }
+  scope :recent, -> { where('sent_at > ?', 7.days.ago) }
 end
