@@ -1,5 +1,5 @@
 class Api::V1::WixController < ApplicationController
-  skip_before_action :verify_authenticity_token
+
   before_action :authenticate_wix_request
   
   def create_user
