@@ -14,7 +14,7 @@ class CreateEmailDeduplicationLogs < ActiveRecord::Migration[7.2]
       t.references :jobber_account, foreign_key: true
       t.timestamps
       
-      t.index [:job_id, :customer_email], unique: true, name: 'idx_email_dedup_job_customer'
+      t.index [:job_id, :customer_email], unique: true, name: 'idx_email_dedup'
       t.index :visit_id
       t.index :sent_at
     end
