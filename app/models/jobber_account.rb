@@ -1,5 +1,6 @@
 class JobberAccount < ApplicationRecord
-  serialize :processed_visit_ids, Array
+  # OR if that doesn't work, use:
+  # attribute :processed_visit_ids, :json, default: []
   
   has_many :wix_users
   has_many :visits
