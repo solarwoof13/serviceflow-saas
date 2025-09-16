@@ -90,9 +90,4 @@ test:
 #
 production:
   <<: *default
-  database: <%= ENV['DATABASE_URL'].split('/').last if ENV['DATABASE_URL'] %>
-  username: <%= ENV['DATABASE_URL'].split('@').first.split('//').last.split(':').first if ENV['DATABASE_URL'] %>
-  password: <%= ENV['DATABASE_URL'].split('@').first.split('//').last.split(':').last if ENV['DATABASE_URL'] %>
-  host: <%= ENV['DATABASE_URL'].split('@').last.split(':').first if ENV['DATABASE_URL'] %>
-  port: <%= ENV['DATABASE_URL'].split(':').last.split('/').first if ENV['DATABASE_URL'] %>
-  sslmode: require
+  url: <%= ENV['DATABASE_URL'] %>

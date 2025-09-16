@@ -1,47 +1,80 @@
 class WixUser < ApplicationRecord
-  # Connect to ServiceProviderProfile and JobberAccount
-  has_one :service_provider_profile, foreign_key: :wix_user_id
-  has_one :jobber_account, through: :service_provider_profile
+  # Map frontend names to backend names
+  PLAN_MAPPING = {
+    'Startup' => 'basic',
+    'Growth' => 'pro',
+    'Elite' => 'enterprise',
+    # Also support lowercase
+    'startup' => 'basic',
+    'growth' => 'pro',
+    'elite' => 'enterprise',
+    # And direct mapping
+    'basic' => 'basic',
+    'pro' => 'pro',
+    'enterprise' => 'enterprise'
+  }.freeze
   
-  validates :wix_member_id, presence: true, uniqueness: true
-  validates :email, presence: true, format: { with: URI::MailTo::EMAIL_REGEXP }
+  RETENTION_DAYS = {
+    'basic' => 60,
+    'pro' => 90,
+    'enterprise' => 180
+  }.freeze
   
-  # Generate API token for Wix authentication
-  before_create :generate_api_token
+  EMAIL_LIMITS = {
+    'basic' => 65,
+    'pro' => 420,
+    'enterprise' => 1550
+  }.freeze
   
-  def generate_api_token
-    self.api_token = SecureRandom.urlsafe_base64(32)
+  belongs_to :jobber_account, optional: true
+  has_many :visits, dependent: :destroy
+  has_many :email_deduplication_logs, dependent: :destroy
+  
+  validates :wix_user_id, presence: true, uniqueness: true
+  
+  # Normalize plan names from frontend
+  before_validation :normalize_subscription_plan
+  
+  scope :active, -> { where(active: true) }
+  scope :with_jobber, -> { where.not(jobber_account_id: nil) }
+  
+  def can_send_email?
+    emails_sent_this_period < email_limit
   end
   
-  def subscription_active?
-    return true if subscription_level == 'PAID'
-    return trial_days_remaining > 0 if subscription_level == 'FREE'
-    false
+  def increment_email_count!
+    increment!(:emails_sent_this_period)
   end
   
-  def trial_expired?
-    subscription_level == 'FREE' && trial_days_remaining <= 0
+  def reset_billing_period!
+    update!(
+      emails_sent_this_period: 0,
+      billing_period_start: Time.current,
+      billing_period_end: 1.month.from_now
+    )
   end
-end
-
-# Create database migration
-# rails generate migration CreateWixUsers
-
-class CreateWixUsers < ActiveRecord::Migration[7.0]
-  def change
-    create_table :wix_users do |t|
-      t.string :wix_member_id, null: false, index: { unique: true }
-      t.string :email, null: false
-      t.string :company_name
-      t.string :subscription_level, default: 'FREE'
-      t.integer :trial_days_remaining, default: 14
-      t.string :api_token, index: { unique: true }
-      t.boolean :profile_completed, default: false
-      t.datetime :last_login
-      t.datetime :last_sync
-      t.json :metadata
-
-      t.timestamps
+  
+  def purge_old_data!
+    cutoff_date = retention_days.days.ago
+    visits.where('created_at < ?', cutoff_date).destroy_all
+    email_deduplication_logs.where('created_at < ?', cutoff_date).destroy_all
+  end
+  
+  # Get display name for frontend
+  def display_plan_name
+    case subscription_plan
+    when 'basic' then 'Startup'
+    when 'pro' then 'Growth'
+    when 'enterprise' then 'Elite'
+    else subscription_plan.capitalize
+    end
+  end
+  
+  private
+  
+  def normalize_subscription_plan
+    if subscription_plan.present?
+      self.subscription_plan = PLAN_MAPPING[subscription_plan] || subscription_plan
     end
   end
 end
