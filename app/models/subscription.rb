@@ -12,7 +12,10 @@ class Subscription < ApplicationRecord
   validates :plan_type, inclusion: { in: PLAN_TYPES }, if: -> { has_attribute?(:plan_type) }
   RETENTION_DAYS = { basic: 60, pro: 90, enterprise: 180 }.freeze
   
-  scope :active, -> { where(active: true) }, if: -> { has_attribute?(:active) }
+  # Replace conditional scope with class method
+  def self.active
+    where(active: true) if has_attribute?(:active)
+  end
   
   def at_email_limit?
     return false unless has_attribute?(:emails_sent_this_period) && has_attribute?(:email_limit)
