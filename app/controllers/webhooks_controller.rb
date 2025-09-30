@@ -94,7 +94,7 @@ class WebhooksController < ApplicationController
     
     if webhook_account_id.present?
       Rails.logger.info "📡 Webhook contains account ID: #{webhook_account_id}"
-      account = JobberAccount.find_or_merge_by_jobber_id(webhook_account_id)
+      account = JobberAccount.find_by(jobber_id: webhook_account_id)
       
       if account
         Rails.logger.info "✅ Found JobberAccount: #{account.name}"
