@@ -7,7 +7,7 @@ class JobberAccount < ApplicationRecord
   has_many :email_deduplication_logs
   has_one :service_provider_profile, dependent: :destroy
   
-  validates :account_id, presence: true, uniqueness: true
+  validates :jobber_id, presence: true, uniqueness: true
   
   # Check if visit was already processed
   def visit_processed?(visit_id)
